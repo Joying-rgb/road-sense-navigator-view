@@ -5,8 +5,22 @@ import WeatherDisplay from "@/components/WeatherDisplay";
 import LanePositionIndicator from "@/components/LanePositionIndicator";
 import ProximityAlert from "@/components/ProximityAlert";
 import RecordingsList from "@/components/RecordingsList";
+import { useState } from "react";
 
 const Index = () => {
+  const [isRecordingActive, setIsRecordingActive] = useState(false);
+  
+  // Handlers for proximity-based recording
+  const handleProximityRecordingStart = () => {
+    setIsRecordingActive(true);
+    // In a real application, this would trigger the VideoFeed component to start recording
+  };
+  
+  const handleProximityRecordingStop = () => {
+    setIsRecordingActive(false);
+    // In a real application, this would trigger the VideoFeed component to stop and save recording
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border">
@@ -19,7 +33,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video feed takes up 2/3 of the space on large screens */}
           <div className="lg:col-span-2">
-            <VideoFeed />
+            <VideoFeed isEmergencyRecording={isRecordingActive} />
           </div>
           
           {/* Right column with navigation and weather */}
@@ -33,7 +47,10 @@ const Index = () => {
             <LanePositionIndicator />
           </div>
           <div>
-            <ProximityAlert />
+            <ProximityAlert 
+              onRecordingStart={handleProximityRecordingStart}
+              onRecordingStop={handleProximityRecordingStop}
+            />
           </div>
           <div>
             <RecordingsList />

@@ -2,11 +2,19 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 
-const ProximityAlert = () => {
+interface ProximityAlertProps {
+  onRecordingStart?: () => void;
+  onRecordingStop?: () => void;
+}
+
+const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertProps) => {
   // In a real app, this would receive data from proximity sensors or video analysis
   const [distance, setDistance] = useState(150); // Distance in cm
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [collisionWarning, setCollisionWarning] = useState(false);
   
   // Simulating changing distances
   useEffect(() => {
@@ -25,12 +33,49 @@ const ProximityAlert = () => {
   useEffect(() => {
     if (distance <= 10 && !isRecording) {
       setIsRecording(true);
+      setRecordingDuration(0);
       console.log("Started recording due to proximity");
+      
+      // Notify user with toast
+      toast.warning("Collision risk detected! Recording started", {
+        duration: 3000,
+      });
+      
+      // Call parent component handler if provided
+      onRecordingStart?.();
+      
+      // Show collision warning
+      setCollisionWarning(true);
+      setTimeout(() => setCollisionWarning(false), 2000);
+      
     } else if (distance > 10 && isRecording) {
       setIsRecording(false);
       console.log("Stopped recording - safe distance reached");
+      
+      // Notify user
+      toast.success(`Recording saved: ${recordingDuration}s safety event`, {
+        duration: 5000,
+      });
+      
+      // Call parent component handler if provided
+      onRecordingStop?.();
     }
-  }, [distance, isRecording]);
+  }, [distance, isRecording, onRecordingStart, onRecordingStop, recordingDuration]);
+  
+  // Recording duration counter
+  useEffect(() => {
+    let timer: number | null = null;
+    
+    if (isRecording) {
+      timer = window.setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    }
+    
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isRecording]);
   
   // Determine safety level
   const getSafetyLevel = () => {
@@ -52,14 +97,14 @@ const ProximityAlert = () => {
   const proximityPercentage = Math.max(0, Math.min(100, (1 - distance / 200) * 100));
   
   return (
-    <Card className="dashboard-card">
+    <Card className={`dashboard-card ${collisionWarning ? 'animate-pulse border-dashboard-red' : ''}`}>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold flex items-center justify-between">
           <span>Proximity Alert</span>
           {isRecording && (
             <span className="flex items-center text-xs font-normal text-dashboard-red">
-              <span className="h-2 w-2 rounded-full bg-dashboard-red animate-pulse-recording mr-1"></span>
-              Auto Recording
+              <span className="h-2 w-2 rounded-full bg-dashboard-red animate-pulse mr-1"></span>
+              Recording: {recordingDuration}s
             </span>
           )}
         </CardTitle>
@@ -83,6 +128,16 @@ const ProximityAlert = () => {
             {getSafetyLevel()}
           </div>
         </div>
+        
+        {distance <= 30 && (
+          <div className="mt-3 text-center">
+            <p className={`text-xs ${distance <= 10 ? 'text-dashboard-red font-medium' : 'text-dashboard-orange'}`}>
+              {distance <= 10 
+                ? "Critical: Automatic recording activated" 
+                : "Warning: Maintain safe distance"}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

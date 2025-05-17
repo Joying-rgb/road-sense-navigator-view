@@ -1,9 +1,11 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
+type LanePosition = "centered" | "left" | "right";
+
 const LanePositionIndicator = () => {
   // In a real app, this would receive data from lane detection algorithm
-  const lanePosition: "centered" | "left" | "right" = "centered"; // Define the type explicitly
+  const lanePosition: LanePosition = "centered";
   
   const renderPosition = () => {
     switch (lanePosition) {
