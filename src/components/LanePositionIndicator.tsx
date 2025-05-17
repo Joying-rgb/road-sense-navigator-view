@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 const LanePositionIndicator = () => {
   // In a real app, this would receive data from lane detection algorithm
-  const lanePosition = "centered"; // Options: "centered", "left", "right"
+  const lanePosition: "centered" | "left" | "right" = "centered"; // Define the type explicitly
   
   const renderPosition = () => {
     switch (lanePosition) {
@@ -12,7 +12,7 @@ const LanePositionIndicator = () => {
           <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
             <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
             <div className="absolute inset-y-0 right-1/4 w-0.5 bg-white"></div>
-            <div className="absolute bottom-3 left-3 h-10 w-16 bg-dashboard-blue rounded-md"></div>
+            <div className="absolute bottom-3 left-3 h-10 w-16 bg-primary rounded-md"></div>
           </div>
         );
       case "right":
@@ -20,7 +20,7 @@ const LanePositionIndicator = () => {
           <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
             <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
             <div className="absolute inset-y-0 right-1/4 w-0.5 bg-white"></div>
-            <div className="absolute bottom-3 right-3 h-10 w-16 bg-dashboard-blue rounded-md"></div>
+            <div className="absolute bottom-3 right-3 h-10 w-16 bg-primary rounded-md"></div>
           </div>
         );
       default: // centered
@@ -28,7 +28,7 @@ const LanePositionIndicator = () => {
           <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
             <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
             <div className="absolute inset-y-0 right-1/4 w-0.5 bg-white"></div>
-            <div className="absolute bottom-3 left-0 right-0 mx-auto h-10 w-16 bg-dashboard-green rounded-md"></div>
+            <div className="absolute bottom-3 left-0 right-0 mx-auto h-10 w-16 bg-green-500 rounded-md"></div>
           </div>
         );
     }
@@ -45,11 +45,11 @@ const LanePositionIndicator = () => {
           <span className="data-label">Status</span>
           <p className="font-medium">
             {lanePosition === "centered" ? (
-              <span className="text-dashboard-green">Centered</span>
+              <span className="text-green-500">Centered</span>
             ) : lanePosition === "left" ? (
-              <span className="text-dashboard-orange">Veering Left</span>
+              <span className="text-accent">Veering Left</span>
             ) : (
-              <span className="text-dashboard-orange">Veering Right</span>
+              <span className="text-accent">Veering Right</span>
             )}
           </p>
         </div>
