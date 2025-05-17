@@ -1,0 +1,61 @@
+
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+
+const LanePositionIndicator = () => {
+  // In a real app, this would receive data from lane detection algorithm
+  const lanePosition = "centered"; // Options: "centered", "left", "right"
+  
+  const renderPosition = () => {
+    switch (lanePosition) {
+      case "left":
+        return (
+          <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
+            <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
+            <div className="absolute inset-y-0 right-1/4 w-0.5 bg-white"></div>
+            <div className="absolute bottom-3 left-3 h-10 w-16 bg-dashboard-blue rounded-md"></div>
+          </div>
+        );
+      case "right":
+        return (
+          <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
+            <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
+            <div className="absolute inset-y-0 right-1/4 w-0.5 bg-white"></div>
+            <div className="absolute bottom-3 right-3 h-10 w-16 bg-dashboard-blue rounded-md"></div>
+          </div>
+        );
+      default: // centered
+        return (
+          <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
+            <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
+            <div className="absolute inset-y-0 right-1/4 w-0.5 bg-white"></div>
+            <div className="absolute bottom-3 left-0 right-0 mx-auto h-10 w-16 bg-dashboard-green rounded-md"></div>
+          </div>
+        );
+    }
+  };
+  
+  return (
+    <Card className="dashboard-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg font-semibold">Lane Position</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {renderPosition()}
+        <div className="mt-2 text-center">
+          <span className="data-label">Status</span>
+          <p className="font-medium">
+            {lanePosition === "centered" ? (
+              <span className="text-dashboard-green">Centered</span>
+            ) : lanePosition === "left" ? (
+              <span className="text-dashboard-orange">Veering Left</span>
+            ) : (
+              <span className="text-dashboard-orange">Veering Right</span>
+            )}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default LanePositionIndicator;
