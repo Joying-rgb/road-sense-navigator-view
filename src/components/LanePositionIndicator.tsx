@@ -8,8 +8,8 @@ const LanePositionIndicator = () => {
   const lanePosition: LanePosition = "centered";
   
   const renderPosition = () => {
-    // Using type-safe string comparisons
-    if (lanePosition === ("left" as LanePosition)) {
+    // Using proper type comparison without any casting
+    if (lanePosition === "left") {
       return (
         <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
           <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
@@ -17,7 +17,7 @@ const LanePositionIndicator = () => {
           <div className="absolute bottom-3 left-3 h-10 w-16 bg-primary rounded-md"></div>
         </div>
       );
-    } else if (lanePosition === ("right" as LanePosition)) {
+    } else if (lanePosition === "right") {
       return (
         <div className="relative h-20 w-full bg-muted rounded-lg overflow-hidden">
           <div className="absolute inset-y-0 left-1/4 w-0.5 bg-white"></div>
@@ -47,9 +47,9 @@ const LanePositionIndicator = () => {
         <div className="mt-2 text-center">
           <span className="data-label">Status</span>
           <p className="font-medium">
-            {lanePosition === ("centered" as LanePosition) ? (
+            {lanePosition === "centered" ? (
               <span className="text-green-500">Centered</span>
-            ) : lanePosition === ("left" as LanePosition) ? (
+            ) : lanePosition === "left" ? (
               <span className="text-accent">Veering Left</span>
             ) : (
               <span className="text-accent">Veering Right</span>

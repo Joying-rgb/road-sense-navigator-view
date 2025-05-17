@@ -5,6 +5,8 @@ import WeatherDisplay from "@/components/WeatherDisplay";
 import LanePositionIndicator from "@/components/LanePositionIndicator";
 import ProximityAlert from "@/components/ProximityAlert";
 import RecordingsList from "@/components/RecordingsList";
+import NavigationInput from "@/components/NavigationInput";
+import EmergencyFeature from "@/components/EmergencyFeature";
 import { useState } from "react";
 
 const Index = () => {
@@ -38,11 +40,12 @@ const Index = () => {
           
           {/* Right column with navigation and weather */}
           <div className="space-y-6">
+            <NavigationInput />
             <NavigationMap />
             <WeatherDisplay />
           </div>
           
-          {/* Bottom row split into 3 columns */}
+          {/* Bottom row split into 4 columns */}
           <div>
             <LanePositionIndicator />
           </div>
@@ -51,6 +54,9 @@ const Index = () => {
               onRecordingStart={handleProximityRecordingStart}
               onRecordingStop={handleProximityRecordingStop}
             />
+          </div>
+          <div>
+            <EmergencyFeature />
           </div>
           <div>
             <RecordingsList />
