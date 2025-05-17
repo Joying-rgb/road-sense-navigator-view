@@ -33,7 +33,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video feed takes up 2/3 of the space on large screens */}
           <div className="lg:col-span-2">
-            <VideoFeed isEmergencyRecording={isRecordingActive} />
+            <VideoFeed />
           </div>
           
           {/* Right column with navigation and weather */}
