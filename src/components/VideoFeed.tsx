@@ -1,8 +1,7 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { VideoOff, Video, Play, Pause, Camera } from "lucide-react";
+import { VideoOff, Video, Play, Pause, Camera, ArrowRight, Leaf } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as tf from "@tensorflow/tfjs";
 import { toast } from "sonner";
@@ -17,6 +16,17 @@ interface Detection {
   bbox: [number, number, number, number]; // [x, y, width, height]
 }
 
+interface NavigationStep {
+  instruction: string;
+  distance: string;
+  time: string;
+}
+
+interface WeatherInfo {
+  condition: 'sunny' | 'cloudy' | 'rainy' | 'snowy';
+  temperature: number;
+}
+
 const VideoFeed = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,6 +37,14 @@ const VideoFeed = () => {
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [isWebcamActive, setIsWebcamActive] = useState(false);
+  
+  // Navigation and environmental info
+  const [currentNavStep, setCurrentNavStep] = useState<NavigationStep | null>(null);
+  const [co2Saved, setCo2Saved] = useState(0);
+  const [weatherInfo, setWeatherInfo] = useState<WeatherInfo>({
+    condition: 'sunny',
+    temperature: 22
+  });
   
   // Model reference
   const model = useRef<cocoSsd.ObjectDetection | null>(null);
@@ -285,6 +303,101 @@ const VideoFeed = () => {
     }
   };
 
+  // Simulate navigation updates
+  useEffect(() => {
+    if (isPlaying) {
+      // Simulate receiving navigation updates
+      const navSteps: NavigationStep[] = [
+        { instruction: "Continue straight on Main St", distance: "0.5 km", time: "2 min" },
+        { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
+        { instruction: "Take the ramp to Highway 101", distance: "0.8 km", time: "2 min" },
+        { instruction: "Merge left to Express Lane", distance: "5.3 km", time: "5 min" },
+        { instruction: "Exit right toward Downtown", distance: "1.0 km", time: "3 min" },
+      ];
+      
+      let stepIndex = 0;
+      
+      // Update navigation step every 10 seconds
+      const navInterval = setInterval(() => {
+        setCurrentNavStep(navSteps[stepIndex]);
+        
+        // Calculate CO2 savings based on current step (mock calculation)
+        const distance = parseFloat(navSteps[stepIndex].distance.replace(" km", "")) || 0;
+        setCo2Saved(prev => prev + distance * 0.12); // 0.12kg CO2 saved per km (example)
+        
+        // Update weather randomly sometimes
+        if (Math.random() > 0.7) {
+          const conditions: ('sunny' | 'cloudy' | 'rainy' | 'snowy')[] = ['sunny', 'cloudy', 'rainy', 'snowy'];
+          setWeatherInfo({
+            condition: conditions[Math.floor(Math.random() * conditions.length)],
+            temperature: Math.floor(Math.random() * 15) + 15 // 15-30°C
+          });
+        }
+        
+        stepIndex = (stepIndex + 1) % navSteps.length;
+      }, 10000);
+      
+      return () => clearInterval(navInterval);
+    }
+  }, [isPlaying]);
+
+  // Render the navigation guidance overlay
+  const renderNavigationOverlay = () => {
+    if (!currentNavStep) return null;
+    
+    return (
+      <div className="absolute top-4 left-4 right-4 bg-black/70 rounded-lg p-3 text-white backdrop-blur-sm">
+        <div className="flex items-center space-x-3">
+          <div className="bg-primary rounded-full p-1.5">
+            <ArrowRight size={18} />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium">{currentNavStep.instruction}</p>
+            <div className="flex text-xs text-gray-300 mt-0.5 space-x-3">
+              <span>{currentNavStep.distance}</span>
+              <span>•</span>
+              <span>{currentNavStep.time}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Render the CO2 savings and weather overlay
+  const renderEnvironmentalOverlay = () => {
+    return (
+      <div className="absolute bottom-16 left-4 right-4 flex space-x-2">
+        {/* CO2 Savings */}
+        <div className="bg-black/70 rounded-lg p-3 text-white backdrop-blur-sm flex-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Leaf className="text-green-400 mr-2" size={18} />
+              <h3 className="font-medium">CO₂ Savings</h3>
+            </div>
+            <div className="text-green-400 font-bold">{co2Saved.toFixed(2)} kg</div>
+          </div>
+          <div className="mt-1 text-xs text-gray-300">
+            <p>Equivalent to {(co2Saved / 21 * 100).toFixed(1)}% of a tree's yearly CO₂ absorption</p>
+          </div>
+        </div>
+        
+        {/* Weather Info */}
+        <div className="bg-black/70 rounded-lg p-3 text-white backdrop-blur-sm w-1/3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium">Weather</h3>
+              <p className="capitalize text-xs">{weatherInfo.condition}</p>
+            </div>
+            <div className="text-right">
+              <span className="font-bold text-xl">{weatherInfo.temperature}°</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Card className="dashboard-card h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -347,6 +460,12 @@ const VideoFeed = () => {
               ref={canvasRef} 
               className="absolute top-0 left-0 w-full h-full pointer-events-none rounded-md"
             />
+            {/* Navigation overlay */}
+            {isPlaying && currentNavStep && renderNavigationOverlay()}
+            
+            {/* Environmental info overlay */}
+            {isPlaying && renderEnvironmentalOverlay()}
+            
             <div className="absolute bottom-4 right-4 flex space-x-2">
               <Button 
                 variant="secondary" 
