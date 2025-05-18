@@ -48,13 +48,18 @@ const LanePositionIndicator = () => {
         <div className="mt-2 text-center">
           <span className="data-label">Status</span>
           <p className="font-medium">
-            {lanePosition === "centered" ? (
-              <span className="text-green-500">Centered</span>
-            ) : lanePosition === "left" ? (
-              <span className="text-accent">Veering Left</span>
-            ) : (
-              <span className="text-accent">Veering Right</span>
-            )}
+            {(() => {
+              switch (lanePosition) {
+                case "centered":
+                  return <span className="text-green-500">Centered</span>;
+                case "left":
+                  return <span className="text-accent">Veering Left</span>;
+                case "right":
+                  return <span className="text-accent">Veering Right</span>;
+                default:
+                  return null;
+              }
+            })()}
           </p>
         </div>
       </CardContent>
