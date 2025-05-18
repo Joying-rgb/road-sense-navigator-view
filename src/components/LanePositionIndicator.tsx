@@ -1,6 +1,7 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
+// Define a proper union type for lane positions
 type LanePosition = "centered" | "left" | "right";
 
 const LanePositionIndicator = () => {
