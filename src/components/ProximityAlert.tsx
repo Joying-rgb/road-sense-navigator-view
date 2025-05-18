@@ -16,12 +16,29 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [collisionWarning, setCollisionWarning] = useState(false);
   
-  // Simulating changing distances
+  // Simulating changing distances with more realistic patterns
   useEffect(() => {
     const interval = setInterval(() => {
-      // Simulate distance changes
+      // Simulate distance changes with more realistic patterns
       setDistance(prev => {
-        const newDistance = prev + (Math.random() > 0.5 ? 10 : -10);
+        // More sophisticated distance simulation
+        let change;
+        
+        // Sometimes make bigger changes to simulate a vehicle passing by
+        if (Math.random() < 0.2) {
+          change = (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 30);
+        } else {
+          // Smaller changes most of the time
+          change = (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 15);
+        }
+        
+        // Occasionally bring object very close to trigger recording
+        if (Math.random() < 0.15 && prev > 20) {
+          return Math.max(5, Math.min(10, prev - 20));
+        }
+        
+        // Normal distance change
+        const newDistance = prev + change;
         return Math.max(5, Math.min(200, newDistance));
       });
     }, 2000);
@@ -29,7 +46,7 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
     return () => clearInterval(interval);
   }, []);
   
-  // Auto recording based on proximity - now triggers at 10cm
+  // Auto recording based on proximity - triggered at 10cm
   useEffect(() => {
     if (distance <= 10 && !isRecording) {
       setIsRecording(true);

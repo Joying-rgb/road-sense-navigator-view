@@ -35,6 +35,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
   const [co2Saved, setCo2Saved] = useState<number>(0);
   const [routeActive, setRouteActive] = useState(false);
   const [isEmergencyRoute, setIsEmergencyRoute] = useState(false);
+  const [destinationReached, setDestinationReached] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const stepIntervalRef = useRef<number | null>(null);
   
@@ -58,6 +59,19 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
   useEffect(() => {
     const handleEmergencyNavigate = (event: CustomEvent<{ destination: string }>) => {
       if (event.detail.destination) {
+        // Set default origin if empty
+        if (!origin || origin.trim() === "") {
+          const defaultOrigin = "Current Location";
+          setOrigin(defaultOrigin);
+          
+          if (setNavigationState) {
+            setNavigationState(prev => ({
+              ...prev,
+              origin: defaultOrigin
+            }));
+          }
+        }
+        
         setDestination(event.detail.destination);
         setIsEmergencyRoute(true);
         handleRouteSearch(undefined, true);
@@ -72,6 +86,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         setCo2Saved(0);
         setRouteActive(false);
         setIsEmergencyRoute(false);
+        setDestinationReached(false);
         window.dispatchEvent(new CustomEvent('navigation:route-cancelled'));
       }
     };
@@ -83,21 +98,25 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       window.removeEventListener('emergency:navigate', handleEmergencyNavigate as EventListener);
       window.removeEventListener('emergency:clear', handleEmergencyClear);
     };
-  }, [isEmergencyRoute]);
+  }, [isEmergencyRoute, origin, setNavigationState]);
   
   const handleRouteSearch = async (e?: React.FormEvent, skipValidation = false) => {
     if (e) e.preventDefault();
     
-    if (!skipValidation && (!origin || !destination)) {
+    // Ensure origin is set
+    const currentOrigin = origin || "Current Location";
+    
+    if (!skipValidation && (!currentOrigin || !destination)) {
       toast.error("Please enter both origin and destination");
       return;
     }
     
     setIsLoading(true);
+    setDestinationReached(false);
     
     try {
       // Create the SERP API request for directions
-      const searchQuery = `${origin} to ${destination} directions`;
+      const searchQuery = `${currentOrigin} to ${destination} directions`;
       const apiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${SERP_API_KEY}`;
       
       // In a production app, you'd call this API from a backend to protect your API key
@@ -112,7 +131,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       if (setNavigationState) {
         setNavigationState(prev => ({
           ...prev,
-          origin,
+          origin: currentOrigin,
           destination
         }));
       }
@@ -142,8 +161,13 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       setCo2Saved(estimatedCo2Saved);
       
       // Generate embedded Google Maps URL with directions
-      const directionsUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&zoom=10`;
-      setMapUrl(directionsUrl);
+      // Make sure both parameters are valid
+      if (currentOrigin && destination) {
+        const directionsUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&origin=${encodeURIComponent(currentOrigin)}&destination=${encodeURIComponent(destination)}&zoom=10`;
+        setMapUrl(directionsUrl);
+      } else {
+        toast.error("Invalid origin or destination");
+      }
       
       // Set route as active and dispatch event
       setRouteActive(true);
@@ -166,6 +190,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     setCurrentStepIndex(0);
     setCo2Saved(0);
     setIsEmergencyRoute(false);
+    setDestinationReached(false);
     
     // Set route as inactive and dispatch event
     setRouteActive(false);
@@ -187,8 +212,9 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
   };
   
   const startNavigationSimulation = () => {
-    // Reset index
+    // Reset index and destination reached status
     setCurrentStepIndex(0);
+    setDestinationReached(false);
     
     // Clear existing interval if any
     if (stepIntervalRef.current) {
@@ -199,13 +225,19 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     stepIntervalRef.current = window.setInterval(() => {
       setCurrentStepIndex(prevIndex => {
         const nextIndex = prevIndex + 1;
-        if (nextIndex >= navigationSteps.length) {
+        if (nextIndex >= navigationSteps.length - 1) { // Use length-1 to stop at last step
           if (stepIntervalRef.current) {
             clearInterval(stepIntervalRef.current);
             stepIntervalRef.current = null;
           }
-          toast.success("You have reached your destination!");
-          return prevIndex;
+          
+          // Only show destination reached message if we're at the final step
+          if (nextIndex === navigationSteps.length - 1) {
+            setDestinationReached(true);
+            toast.success("You have reached your destination!");
+          }
+          
+          return Math.min(nextIndex, navigationSteps.length - 1); // Don't exceed array bounds
         }
         return nextIndex;
       });
@@ -312,7 +344,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
                 {isEmergencyRoute && (
                   <AlertTriangle className="mr-1 h-4 w-4 text-red-500" />
                 )}
-                Current Direction:
+                {destinationReached ? "Destination Reached" : "Current Direction:"}
               </h3>
               <div className={`text-xs px-2 py-1 rounded-full ${
                 isEmergencyRoute ? 'bg-red-500/30 text-red-500' : 'bg-accent/30'
