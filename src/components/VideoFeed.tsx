@@ -364,12 +364,12 @@ const VideoFeed = () => {
     );
   };
   
-  // Render the CO2 savings and weather overlay
-  const renderEnvironmentalOverlay = () => {
+  // Render the CO2 savings and weather info (now moved below video)
+  const renderEnvironmentalInfo = () => {
     return (
-      <div className="absolute bottom-16 left-4 right-4 flex space-x-2">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         {/* CO2 Savings */}
-        <div className="bg-black/70 rounded-lg p-3 text-white backdrop-blur-sm flex-1">
+        <div className="bg-card rounded-lg p-3 border border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <Leaf className="text-green-400 mr-2" size={18} />
@@ -377,13 +377,13 @@ const VideoFeed = () => {
             </div>
             <div className="text-green-400 font-bold">{co2Saved.toFixed(2)} kg</div>
           </div>
-          <div className="mt-1 text-xs text-gray-300">
+          <div className="mt-1 text-xs text-muted-foreground">
             <p>Equivalent to {(co2Saved / 21 * 100).toFixed(1)}% of a tree's yearly CO₂ absorption</p>
           </div>
         </div>
         
         {/* Weather Info */}
-        <div className="bg-black/70 rounded-lg p-3 text-white backdrop-blur-sm w-1/3">
+        <div className="bg-card rounded-lg p-3 border border-border">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-medium">Weather</h3>
@@ -460,11 +460,8 @@ const VideoFeed = () => {
               ref={canvasRef} 
               className="absolute top-0 left-0 w-full h-full pointer-events-none rounded-md"
             />
-            {/* Navigation overlay */}
+            {/* Navigation overlay - kept on video for directional guidance */}
             {isPlaying && currentNavStep && renderNavigationOverlay()}
-            
-            {/* Environmental info overlay */}
-            {isPlaying && renderEnvironmentalOverlay()}
             
             <div className="absolute bottom-4 right-4 flex space-x-2">
               <Button 
@@ -492,6 +489,9 @@ const VideoFeed = () => {
             </div>
           </div>
         )}
+        
+        {/* Environmental info now below video instead of as overlay */}
+        {isPlaying && renderEnvironmentalInfo()}
       </CardContent>
     </Card>
   );
