@@ -9,9 +9,12 @@ import RecordingsList from "@/components/RecordingsList";
 import EmergencyFeature from "@/components/EmergencyFeature";
 import NearAccidentDetection from "@/components/NearAccidentDetection";
 import TrafficMonitoring from "@/components/TrafficMonitoring";
+import CustomModelUpload from "@/components/CustomModelUpload";
 import { AlertTriangle, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { HSVFilterParams } from "@/utils/imageFiltering";
+import { CustomModelConfig } from "@/utils/customModelLoader";
 
 // Types
 interface EmergencyLocation {
@@ -45,6 +48,27 @@ const Index = () => {
     destination: ""
   });
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  
+  // New state for custom model and filtering
+  const [customModelConfig, setCustomModelConfig] = useState<CustomModelConfig | null>(null);
+  const [hsvFilterParams, setHsvFilterParams] = useState<HSVFilterParams>({
+    hueMin: 0,
+    hueMax: 180,
+    satMin: 0,
+    satMax: 255,
+    valMin: 0,
+    valMax: 255
+  });
+  
+  // Handlers for custom model and filtering
+  const handleCustomModelLoaded = (config: CustomModelConfig) => {
+    setCustomModelConfig(config);
+    // The VideoFeed component will handle loading the actual model
+  };
+  
+  const handleFilterParamsChange = (params: HSVFilterParams) => {
+    setHsvFilterParams(params);
+  };
   
   // Handlers for proximity-based recording
   const handleProximityRecordingStart = () => {
@@ -175,6 +199,12 @@ const Index = () => {
               />
             </div>
             <WeatherDisplay />
+            
+            {/* Add the custom model upload component */}
+            <CustomModelUpload 
+              onModelLoaded={handleCustomModelLoaded}
+              onFilterParamsChange={handleFilterParamsChange}
+            />
           </div>
           
           {/* Advanced features section */}
