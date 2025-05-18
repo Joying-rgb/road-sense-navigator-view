@@ -46,6 +46,9 @@ const VideoFeed = () => {
     temperature: 22
   });
   
+  // New state to track if a route has been calculated
+  const [hasActiveRoute, setHasActiveRoute] = useState(false);
+  
   // Model reference
   const model = useRef<cocoSsd.ObjectDetection | null>(null);
   
@@ -303,9 +306,30 @@ const VideoFeed = () => {
     }
   };
 
-  // Simulate navigation updates
+  // Subscribe to custom events from NavigationMap component to know when a route has been calculated
   useEffect(() => {
-    if (isPlaying) {
+    const handleRouteCalculated = () => {
+      setHasActiveRoute(true);
+    };
+
+    const handleRouteCancelled = () => {
+      setHasActiveRoute(false);
+      setCurrentNavStep(null);
+      setCo2Saved(0);
+    };
+
+    window.addEventListener('navigation:route-calculated', handleRouteCalculated);
+    window.addEventListener('navigation:route-cancelled', handleRouteCancelled);
+    
+    return () => {
+      window.removeEventListener('navigation:route-calculated', handleRouteCalculated);
+      window.removeEventListener('navigation:route-cancelled', handleRouteCancelled);
+    };
+  }, []);
+  
+  // Simulate navigation updates - only simulate when there's an active route
+  useEffect(() => {
+    if (isPlaying && hasActiveRoute) {
       // Simulate receiving navigation updates
       const navSteps: NavigationStep[] = [
         { instruction: "Continue straight on Main St", distance: "0.5 km", time: "2 min" },
@@ -338,12 +362,15 @@ const VideoFeed = () => {
       }, 10000);
       
       return () => clearInterval(navInterval);
+    } else if (!hasActiveRoute) {
+      // Reset navigation step when no route is active
+      setCurrentNavStep(null);
     }
-  }, [isPlaying]);
+  }, [isPlaying, hasActiveRoute]);
 
-  // Render the navigation guidance overlay
+  // Render the navigation guidance overlay - only when there's an active route
   const renderNavigationOverlay = () => {
-    if (!currentNavStep) return null;
+    if (!currentNavStep || !hasActiveRoute) return null;
     
     return (
       <div className="absolute top-4 left-4 right-4 bg-black/70 rounded-lg p-3 text-white backdrop-blur-sm">
@@ -364,8 +391,10 @@ const VideoFeed = () => {
     );
   };
   
-  // Render the CO2 savings and weather info (now moved below video)
+  // Render the CO2 savings and weather info - only when there's an active route
   const renderEnvironmentalInfo = () => {
+    if (!hasActiveRoute) return null;
+    
     return (
       <div className="mt-4 grid grid-cols-2 gap-3">
         {/* CO2 Savings */}
@@ -460,8 +489,8 @@ const VideoFeed = () => {
               ref={canvasRef} 
               className="absolute top-0 left-0 w-full h-full pointer-events-none rounded-md"
             />
-            {/* Navigation overlay - kept on video for directional guidance */}
-            {isPlaying && currentNavStep && renderNavigationOverlay()}
+            {/* Navigation overlay - only displayed when there's an active route */}
+            {isPlaying && renderNavigationOverlay()}
             
             <div className="absolute bottom-4 right-4 flex space-x-2">
               <Button 
@@ -490,8 +519,16 @@ const VideoFeed = () => {
           </div>
         )}
         
-        {/* Environmental info now below video instead of as overlay */}
+        {/* Environmental info - only displayed when there's an active route */}
         {isPlaying && renderEnvironmentalInfo()}
+        
+        {!hasActiveRoute && isPlaying && (
+          <div className="mt-4 bg-muted p-3 rounded-lg text-center">
+            <p className="text-sm text-muted-foreground">
+              Enter a destination in the Navigation Center to see route directions and environmental data.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -22,7 +22,9 @@ const NavigationMap = () => {
   const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [co2Saved, setCo2Saved] = useState<number>(0);
+  const [routeActive, setRouteActive] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const stepIntervalRef = useRef<number | null>(null);
   
   const handleRouteSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +74,11 @@ const NavigationMap = () => {
       const directionsUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&zoom=10`;
       setMapUrl(directionsUrl);
       
-      // Simulate navigation progress
-      // In a real app, this would be updated based on GPS coordinates
+      // Set route as active and dispatch event
+      setRouteActive(true);
+      window.dispatchEvent(new CustomEvent('navigation:route-calculated'));
+      
+      // Start navigation simulation
       startNavigationSimulation();
     } catch (error) {
       console.error("Failed to fetch route:", error);
@@ -83,33 +88,58 @@ const NavigationMap = () => {
     }
   };
   
+  const handleCancelRoute = () => {
+    // Clear the route
+    setMapUrl(null);
+    setNavigationSteps([]);
+    setCurrentStepIndex(0);
+    setCo2Saved(0);
+    
+    // Set route as inactive and dispatch event
+    setRouteActive(false);
+    window.dispatchEvent(new CustomEvent('navigation:route-cancelled'));
+    
+    // Clear the interval if it exists
+    if (stepIntervalRef.current) {
+      clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = null;
+    }
+  };
+  
   const startNavigationSimulation = () => {
     // Reset index
     setCurrentStepIndex(0);
     
+    // Clear existing interval if any
+    if (stepIntervalRef.current) {
+      clearInterval(stepIntervalRef.current);
+    }
+    
     // Simulate navigation progress by advancing through steps
-    const stepInterval = setInterval(() => {
+    stepIntervalRef.current = window.setInterval(() => {
       setCurrentStepIndex(prevIndex => {
         const nextIndex = prevIndex + 1;
         if (nextIndex >= navigationSteps.length) {
-          clearInterval(stepInterval);
+          if (stepIntervalRef.current) {
+            clearInterval(stepIntervalRef.current);
+            stepIntervalRef.current = null;
+          }
           toast.success("You have reached your destination!");
           return prevIndex;
         }
         return nextIndex;
       });
     }, 8000); // Advance to next step every 8 seconds
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(stepInterval);
   };
   
-  // Log for demonstration (would be removed in production)
+  // Clean up interval on component unmount
   useEffect(() => {
-    if (origin && destination) {
-      console.log("Routing from", origin, "to", destination);
-    }
-  }, [origin, destination]);
+    return () => {
+      if (stepIntervalRef.current) {
+        clearInterval(stepIntervalRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Card className="dashboard-card h-full">
@@ -135,22 +165,37 @@ const NavigationMap = () => {
                 className="bg-muted"
               />
             </div>
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Finding route...
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <Route className="mr-2 h-4 w-4" />
-                  Find Route
-                </span>
+            <div className="flex gap-2">
+              <Button 
+                type="submit" 
+                disabled={isLoading} 
+                className="flex-1"
+              >
+                {isLoading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Finding route...
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <Route className="mr-2 h-4 w-4" />
+                    Find Route
+                  </span>
+                )}
+              </Button>
+              {routeActive && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleCancelRoute}
+                >
+                  Cancel
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
         </form>
         

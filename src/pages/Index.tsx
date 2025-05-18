@@ -5,7 +5,6 @@ import WeatherDisplay from "@/components/WeatherDisplay";
 import LanePositionIndicator from "@/components/LanePositionIndicator";
 import ProximityAlert from "@/components/ProximityAlert";
 import RecordingsList from "@/components/RecordingsList";
-import NavigationInput from "@/components/NavigationInput";
 import EmergencyFeature from "@/components/EmergencyFeature";
 import { AlertTriangle, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,17 +53,14 @@ const Index = () => {
             <VideoFeed />
           </div>
           
-          {/* Right column with navigation section (combined) and weather */}
+          {/* Right column with navigation section and weather */}
           <div className="space-y-6">
             <div className="bg-card rounded-lg border border-border p-4">
               <div className="flex items-center gap-2 mb-4">
                 <Navigation className="h-5 w-5" />
                 <h2 className="text-lg font-semibold">Navigation Center</h2>
               </div>
-              <NavigationInput />
-              <div className="mt-4">
-                <NavigationMap />
-              </div>
+              <NavigationMap />
             </div>
             <WeatherDisplay />
           </div>
