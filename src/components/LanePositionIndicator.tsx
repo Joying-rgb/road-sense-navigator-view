@@ -37,6 +37,20 @@ const LanePositionIndicator = () => {
         );
     }
   };
+
+  // Helper function to get status text based on lane position
+  const getStatusText = () => {
+    switch (lanePosition) {
+      case "centered":
+        return <span className="text-green-500">Centered</span>;
+      case "left":
+        return <span className="text-accent">Veering Left</span>;
+      case "right":
+        return <span className="text-accent">Veering Right</span>;
+      default:
+        return null;
+    }
+  };
   
   return (
     <Card className="dashboard-card">
@@ -48,18 +62,7 @@ const LanePositionIndicator = () => {
         <div className="mt-2 text-center">
           <span className="data-label">Status</span>
           <p className="font-medium">
-            {(() => {
-              switch (lanePosition) {
-                case "centered":
-                  return <span className="text-green-500">Centered</span>;
-                case "left":
-                  return <span className="text-accent">Veering Left</span>;
-                case "right":
-                  return <span className="text-accent">Veering Right</span>;
-                default:
-                  return null;
-              }
-            })()}
+            {getStatusText()}
           </p>
         </div>
       </CardContent>
