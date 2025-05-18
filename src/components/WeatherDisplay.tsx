@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CloudSun, CloudRain, CloudSnow } from "lucide-react";
+import { toast } from "sonner";
 
 interface WeatherData {
   temperature: number;
@@ -26,23 +27,52 @@ const WeatherDisplay = () => {
     co2Saved: 0,
     fuelEfficiencyImpact: 'Good'
   });
+  
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
-  // In a real app, we would fetch weather data from an API
+  // Get user's geolocation
   useEffect(() => {
-    // Simulate API call with sample data
-    const fetchWeather = () => {
-      // This would be replaced with actual API call
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+          
+          toast.success("Retrieved your location for weather updates");
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          toast.error("Could not retrieve your location. Using default weather data.");
+        }
+      );
+    } else {
+      toast.error("Geolocation is not supported by your browser");
+    }
+  }, []);
+
+  // Fetch weather data based on user location
+  useEffect(() => {
+    const fetchWeather = async () => {
+      // In a real app, we'd use user's location to fetch real weather data
+      // For this demo, simulate with random data that changes less frequently
+      
       setTimeout(() => {
         const conditions: ('sunny' | 'cloudy' | 'rainy' | 'snowy')[] = ['sunny', 'cloudy', 'rainy', 'snowy'];
         const randomCondition = conditions[Math.floor(Math.random() * conditions.length)];
         
+        // Add some randomness but ensure values don't change too much
         const newWeather = {
-          temperature: Math.floor(Math.random() * 15) + 15, // 15-30°C
-          humidity: Math.floor(Math.random() * 30) + 50, // 50-80%
+          temperature: Math.floor(Math.random() * 10) + 15, // 15-25°C
+          humidity: Math.floor(Math.random() * 20) + 60, // 60-80%
           condition: randomCondition,
-          location: 'Current Location',
-          windSpeed: Math.floor(Math.random() * 20) + 5, // 5-25 km/h
-          visibility: Math.floor(Math.random() * 8) + 3 // 3-10 km
+          location: userLocation ? 'Your Current Location' : 'Default Location',
+          windSpeed: Math.floor(Math.random() * 10) + 5, // 5-15 km/h
+          visibility: Math.floor(Math.random() * 5) + 5 // 5-10 km
         };
         
         setWeather(newWeather);
@@ -53,8 +83,12 @@ const WeatherDisplay = () => {
     };
     
     fetchWeather();
-    // In real app, we would set up interval to refresh weather data
-  }, []);
+    
+    // Refresh weather every 5 minutes
+    const interval = setInterval(fetchWeather, 300000);
+    
+    return () => clearInterval(interval);
+  }, [userLocation]);
   
   const calculateEnvironmentalImpact = (weatherData: WeatherData) => {
     // This would be a more complex calculation in a real app
@@ -118,6 +152,22 @@ const WeatherDisplay = () => {
         return 'Unknown';
     }
   };
+  
+  // Get driving recommendation based on weather
+  const getDrivingRecommendation = () => {
+    switch (weather.condition) {
+      case 'rainy':
+        return 'Slow down and increase following distance';
+      case 'snowy':
+        return 'Use extreme caution and avoid sudden maneuvers';
+      case 'cloudy':
+        return 'Drive normally with standard precautions';
+      case 'sunny':
+        return 'Be aware of potential glare on windshield';
+      default:
+        return 'Drive according to conditions';
+    }
+  };
 
   return (
     <Card className="dashboard-card">
@@ -139,6 +189,15 @@ const WeatherDisplay = () => {
             <p className="data-value">{weather.humidity}%</p>
             <p className="text-xs text-muted-foreground mt-1">{weather.location}</p>
           </div>
+        </div>
+        
+        {/* Driving recommendation */}
+        <div className={`mb-3 p-2 rounded-md text-sm ${
+          weather.condition === 'snowy' ? 'bg-blue-500/10 text-blue-500' :
+          weather.condition === 'rainy' ? 'bg-blue-400/10 text-blue-400' :
+          'bg-yellow-500/10 text-yellow-500'
+        }`}>
+          <strong>Driving tip:</strong> {getDrivingRecommendation()}
         </div>
         
         <div className="border-t border-border pt-3 mt-1">

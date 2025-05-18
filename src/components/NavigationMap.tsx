@@ -4,9 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input"; 
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Route } from "lucide-react";
+import { Route, AlertTriangle } from "lucide-react";
 
-const SERP_API_KEY = "c2242a49c3eda3248a47be63d8347d1ad9aa10ea0eef1d2326775c566ac0b6cd";
+interface NavigationState {
+  origin: string;
+  destination: string;
+  previousDestination?: string;
+}
+
+interface NavigationMapProps {
+  navigationState?: NavigationState;
+  setNavigationState?: React.Dispatch<React.SetStateAction<NavigationState>>;
+}
 
 interface NavigationStep {
   instruction: string;
@@ -14,7 +23,9 @@ interface NavigationStep {
   time: string;
 }
 
-const NavigationMap = () => {
+const SERP_API_KEY = "c2242a49c3eda3248a47be63d8347d1ad9aa10ea0eef1d2326775c566ac0b6cd";
+
+const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapProps) => {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [mapUrl, setMapUrl] = useState<string | null>(null);
@@ -23,13 +34,61 @@ const NavigationMap = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [co2Saved, setCo2Saved] = useState<number>(0);
   const [routeActive, setRouteActive] = useState(false);
+  const [isEmergencyRoute, setIsEmergencyRoute] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const stepIntervalRef = useRef<number | null>(null);
   
-  const handleRouteSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Sync internal state with parent state if provided
+  useEffect(() => {
+    if (navigationState) {
+      setOrigin(navigationState.origin || "");
+      setDestination(navigationState.destination || "");
+      
+      // If destination changed externally, handle it
+      if (navigationState.destination && navigationState.destination !== destination) {
+        // If there's a non-empty destination, calculate the route
+        if (navigationState.destination.trim() !== "") {
+          handleRouteSearch(undefined, true);
+        }
+      }
+    }
+  }, [navigationState]);
+  
+  // Listen for emergency navigation events
+  useEffect(() => {
+    const handleEmergencyNavigate = (event: CustomEvent<{ destination: string }>) => {
+      if (event.detail.destination) {
+        setDestination(event.detail.destination);
+        setIsEmergencyRoute(true);
+        handleRouteSearch(undefined, true);
+      }
+    };
     
-    if (!origin || !destination) {
+    const handleEmergencyClear = () => {
+      if (isEmergencyRoute) {
+        setMapUrl(null);
+        setNavigationSteps([]);
+        setCurrentStepIndex(0);
+        setCo2Saved(0);
+        setRouteActive(false);
+        setIsEmergencyRoute(false);
+        window.dispatchEvent(new CustomEvent('navigation:route-cancelled'));
+      }
+    };
+    
+    window.addEventListener('emergency:navigate', handleEmergencyNavigate as EventListener);
+    window.addEventListener('emergency:clear', handleEmergencyClear);
+    
+    return () => {
+      window.removeEventListener('emergency:navigate', handleEmergencyNavigate as EventListener);
+      window.removeEventListener('emergency:clear', handleEmergencyClear);
+    };
+  }, [isEmergencyRoute]);
+  
+  const handleRouteSearch = async (e?: React.FormEvent, skipValidation = false) => {
+    if (e) e.preventDefault();
+    
+    if (!skipValidation && (!origin || !destination)) {
       toast.error("Please enter both origin and destination");
       return;
     }
@@ -44,7 +103,19 @@ const NavigationMap = () => {
       // In a production app, you'd call this API from a backend to protect your API key
       // For this demo, we'll simulate a successful map load and generate mock navigation steps
       
-      toast.success("Route found");
+      toast.success(isEmergencyRoute ? 
+        "Emergency route found" : 
+        "Route found"
+      );
+      
+      // Update parent state if available
+      if (setNavigationState) {
+        setNavigationState(prev => ({
+          ...prev,
+          origin,
+          destination
+        }));
+      }
       
       // Generate mock navigation steps (in a real app, this would come from the routing API)
       const mockSteps: NavigationStep[] = [
@@ -94,6 +165,7 @@ const NavigationMap = () => {
     setNavigationSteps([]);
     setCurrentStepIndex(0);
     setCo2Saved(0);
+    setIsEmergencyRoute(false);
     
     // Set route as inactive and dispatch event
     setRouteActive(false);
@@ -103,6 +175,14 @@ const NavigationMap = () => {
     if (stepIntervalRef.current) {
       clearInterval(stepIntervalRef.current);
       stepIntervalRef.current = null;
+    }
+    
+    // Update parent state if available
+    if (setNavigationState) {
+      setNavigationState(prev => ({
+        ...prev,
+        destination: ""
+      }));
     }
   };
   
@@ -153,7 +233,15 @@ const NavigationMap = () => {
               <Input
                 placeholder="Current Location" 
                 value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
+                onChange={(e) => {
+                  setOrigin(e.target.value);
+                  if (setNavigationState) {
+                    setNavigationState(prev => ({
+                      ...prev,
+                      origin: e.target.value
+                    }));
+                  }
+                }}
                 className="bg-muted"
               />
             </div>
@@ -161,7 +249,15 @@ const NavigationMap = () => {
               <Input
                 placeholder="Destination" 
                 value={destination}
-                onChange={(e) => setDestination(e.target.value)}
+                onChange={(e) => {
+                  setDestination(e.target.value);
+                  if (setNavigationState) {
+                    setNavigationState(prev => ({
+                      ...prev,
+                      destination: e.target.value
+                    }));
+                  }
+                }}
                 className="bg-muted"
               />
             </div>
@@ -181,8 +277,17 @@ const NavigationMap = () => {
                   </span>
                 ) : (
                   <span className="flex items-center">
-                    <Route className="mr-2 h-4 w-4" />
-                    Find Route
+                    {isEmergencyRoute ? (
+                      <>
+                        <AlertTriangle className="mr-2 h-4 w-4 text-red-500" />
+                        Find Emergency Route
+                      </>
+                    ) : (
+                      <>
+                        <Route className="mr-2 h-4 w-4" />
+                        Find Route
+                      </>
+                    )}
                   </span>
                 )}
               </Button>
@@ -201,16 +306,27 @@ const NavigationMap = () => {
         
         {/* Navigation Instructions */}
         {navigationSteps.length > 0 && (
-          <div className="mb-3 p-3 bg-accent/20 rounded-lg">
+          <div className={`mb-3 p-3 rounded-lg ${isEmergencyRoute ? 'bg-red-500/10' : 'bg-accent/20'}`}>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium">Current Direction:</h3>
-              <div className="text-xs bg-accent/30 px-2 py-1 rounded-full">
+              <h3 className="font-medium flex items-center">
+                {isEmergencyRoute && (
+                  <AlertTriangle className="mr-1 h-4 w-4 text-red-500" />
+                )}
+                Current Direction:
+              </h3>
+              <div className={`text-xs px-2 py-1 rounded-full ${
+                isEmergencyRoute ? 'bg-red-500/30 text-red-500' : 'bg-accent/30'
+              }`}>
                 Step {currentStepIndex + 1} of {navigationSteps.length}
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="bg-primary/20 p-2 rounded-full">
-                <Route className="h-5 w-5 text-primary" />
+              <div className={`p-2 rounded-full ${
+                isEmergencyRoute ? 'bg-red-500/20' : 'bg-primary/20'
+              }`}>
+                <Route className={`h-5 w-5 ${
+                  isEmergencyRoute ? 'text-red-500' : 'text-primary'
+                }`} />
               </div>
               <div className="flex-1">
                 <p className="font-medium">{navigationSteps[currentStepIndex].instruction}</p>
@@ -221,10 +337,17 @@ const NavigationMap = () => {
                 </div>
               </div>
             </div>
-            {co2Saved > 0 && (
+            {co2Saved > 0 && !isEmergencyRoute && (
               <div className="mt-2 text-xs flex items-center">
                 <span className="text-green-500 font-medium">
                   Estimated CO2 saved: {co2Saved} kg
+                </span>
+              </div>
+            )}
+            {isEmergencyRoute && (
+              <div className="mt-2 text-xs flex items-center">
+                <span className="text-red-500 font-medium">
+                  Emergency Route Active
                 </span>
               </div>
             )}

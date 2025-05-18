@@ -29,7 +29,7 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
     return () => clearInterval(interval);
   }, []);
   
-  // Auto recording based on proximity
+  // Auto recording based on proximity - now triggers at 10cm
   useEffect(() => {
     if (distance <= 10 && !isRecording) {
       setIsRecording(true);
@@ -49,6 +49,7 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
       setTimeout(() => setCollisionWarning(false), 2000);
       
     } else if (distance > 10 && isRecording) {
+      // Only stop recording when object moves away from critical distance
       setIsRecording(false);
       console.log("Stopped recording - safe distance reached");
       
