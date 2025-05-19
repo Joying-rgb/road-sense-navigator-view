@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { VideoOff, Video, Play, Pause, Camera, ArrowRight, Leaf } from "lucide-r
 import { cn } from "@/lib/utils";
 import * as tf from "@tensorflow/tfjs";
 import { toast } from "sonner";
+import { NavigationStep } from "@/components/NavigationMap";
 
 // Load COCO-SSD model (in a real implementation, we would use YOLOv10)
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
@@ -15,12 +15,6 @@ interface Detection {
   class: string;
   confidence: number;
   bbox: [number, number, number, number]; // [x, y, width, height]
-}
-
-interface NavigationStep {
-  instruction: string;
-  distance: string;
-  time: string;
 }
 
 interface WeatherInfo {
@@ -383,8 +377,17 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
   
   // Subscribe to custom events from NavigationMap component to know when a route has been calculated
   useEffect(() => {
-    const handleRouteCalculated = () => {
+    const handleRouteCalculated = (event: CustomEvent<{steps: NavigationStep[]}>) => {
       setHasActiveRoute(true);
+      
+      // Get navigation steps from the event if available
+      if (event.detail && event.detail.steps) {
+        setNavigationSteps(event.detail.steps);
+        if (event.detail.steps.length > 0) {
+          setCurrentNavStep(event.detail.steps[0]);
+          setCurrentStepIndex(0);
+        }
+      }
     };
 
     const handleRouteCancelled = () => {
@@ -395,9 +398,18 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
       setCo2Saved(0);
     };
 
-    const handleEmergencyNavigate = (event: CustomEvent<{ destination: string }>) => {
+    const handleEmergencyNavigate = (event: CustomEvent<{ destination: string, steps?: NavigationStep[] }>) => {
       setHasActiveRoute(true);
       toast.info(`Emergency navigation set to: ${event.detail.destination}`);
+      
+      // Get navigation steps if available
+      if (event.detail && event.detail.steps) {
+        setNavigationSteps(event.detail.steps);
+        if (event.detail.steps.length > 0) {
+          setCurrentNavStep(event.detail.steps[0]);
+          setCurrentStepIndex(0);
+        }
+      }
     };
     
     const handleEmergencyClear = () => {
@@ -407,70 +419,68 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
       setCurrentStepIndex(0);
     };
     
-    window.addEventListener('navigation:route-calculated', handleRouteCalculated);
+    window.addEventListener('navigation:route-calculated', handleRouteCalculated as EventListener);
     window.addEventListener('navigation:route-cancelled', handleRouteCancelled);
     window.addEventListener('emergency:navigate', handleEmergencyNavigate as EventListener);
     window.addEventListener('emergency:clear', handleEmergencyClear);
     
     return () => {
-      window.removeEventListener('navigation:route-calculated', handleRouteCalculated);
+      window.removeEventListener('navigation:route-calculated', handleRouteCalculated as EventListener);
       window.removeEventListener('navigation:route-cancelled', handleRouteCancelled);
       window.removeEventListener('emergency:navigate', handleEmergencyNavigate as EventListener);
       window.removeEventListener('emergency:clear', handleEmergencyClear);
     };
   }, []);
   
-  // Simulate navigation updates - only simulate when there's an active route
+  // Navigation step updates - only when there's an active route and we have navigation steps
   useEffect(() => {
-    if (isPlaying && hasActiveRoute) {
-      // Simulate receiving navigation updates
-      const navSteps: NavigationStep[] = [
-        { instruction: "Continue straight on Main St", distance: "0.5 km", time: "2 min" },
-        { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
-        { instruction: "Take the ramp to Highway 101", distance: "0.8 km", time: "2 min" },
-        { instruction: "Merge left to Express Lane", distance: "5.3 km", time: "5 min" },
-        { instruction: "Exit right toward Downtown", distance: "1.0 km", time: "3 min" },
-      ];
+    if (isPlaying && hasActiveRoute && navigationSteps.length > 0) {
+      // Only create an interval if we have valid navigation steps
+      // Reset CO2 calculation to avoid duplicating
+      setCo2Saved(0);
       
-      // Initialize navigation steps
-      setNavigationSteps(navSteps);
       // Set initial step
-      setCurrentNavStep(navSteps[0]);
-      
-      let stepIndex = 0;
+      setCurrentNavStep(navigationSteps[0]);
+      setCurrentStepIndex(0);
       
       // Update navigation step every 10 seconds
       const navInterval = setInterval(() => {
-        if (stepIndex < navSteps.length) {
-          const currentStep = navSteps[stepIndex];
-          setCurrentNavStep(currentStep);
-          setCurrentStepIndex(stepIndex);
-          
-          // Calculate CO2 savings based on current step (mock calculation)
-          const distance = parseFloat(currentStep.distance.replace(" km", "")) || 0;
-          setCo2Saved(prev => prev + distance * 0.12); // 0.12kg CO2 saved per km (example)
-          
-          // Update weather randomly sometimes
-          if (Math.random() > 0.7) {
-            const conditions: ('sunny' | 'cloudy' | 'rainy' | 'snowy')[] = ['sunny', 'cloudy', 'rainy', 'snowy'];
-            setWeatherInfo({
-              condition: conditions[Math.floor(Math.random() * conditions.length)],
-              temperature: Math.floor(Math.random() * 15) + 15 // 15-30°C
-            });
+        setCurrentStepIndex(prevIndex => {
+          // Ensure we don't go beyond our steps array
+          if (prevIndex < navigationSteps.length - 1) {
+            const nextIndex = prevIndex + 1;
+            const nextStep = navigationSteps[nextIndex];
+            
+            // Update current step
+            setCurrentNavStep(nextStep);
+            
+            // Calculate CO2 savings based on this step
+            const distance = parseFloat(nextStep.distance.replace(" km", "")) || 0;
+            setCo2Saved(prev => prev + distance * 0.12);
+            
+            // Update weather randomly sometimes
+            if (Math.random() > 0.7) {
+              const conditions: ('sunny' | 'cloudy' | 'rainy' | 'snowy')[] = ['sunny', 'cloudy', 'rainy', 'snowy'];
+              setWeatherInfo({
+                condition: conditions[Math.floor(Math.random() * conditions.length)],
+                temperature: Math.floor(Math.random() * 15) + 15 // 15-30°C
+              });
+            }
+            
+            return nextIndex;
           }
-          
-          stepIndex = (stepIndex + 1) % navSteps.length;
-        }
+          return prevIndex; // Stay at the last step
+        });
       }, 10000);
       
       return () => clearInterval(navInterval);
-    } else if (!hasActiveRoute) {
-      // Reset navigation step when no route is active
+    } else if (!hasActiveRoute || navigationSteps.length === 0) {
+      // Reset navigation step when no route is active or no steps
       setCurrentNavStep(null);
-      setNavigationSteps([]);
       setCurrentStepIndex(0);
+      setCo2Saved(0);
     }
-  }, [isPlaying, hasActiveRoute]);
+  }, [isPlaying, hasActiveRoute, navigationSteps]);
 
   // Render the navigation guidance overlay - only when there's an active route
   const renderNavigationOverlay = () => {

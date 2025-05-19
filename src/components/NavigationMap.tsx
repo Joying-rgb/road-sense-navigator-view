@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input"; 
@@ -17,7 +16,7 @@ interface NavigationMapProps {
   setNavigationState?: React.Dispatch<React.SetStateAction<NavigationState>>;
 }
 
-interface NavigationStep {
+export interface NavigationStep {
   instruction: string;
   distance: string;
   time: string;
@@ -120,7 +119,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       const apiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${SERP_API_KEY}`;
       
       // In a production app, you'd call this API from a backend to protect your API key
-      // For this demo, we'll simulate a successful map load and generate mock navigation steps
+      // For this demo, we'll simulate a successful map load and generate navigation steps based on the destination
       
       toast.success(isEmergencyRoute ? 
         "Emergency route found" : 
@@ -136,21 +135,52 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         }));
       }
       
-      // Generate mock navigation steps (in a real app, this would come from the routing API)
-      const mockSteps: NavigationStep[] = [
-        { instruction: "Head north on Main St", distance: "0.5 km", time: "2 min" },
-        { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
-        { instruction: "Take the ramp onto Highway 101", distance: "5.8 km", time: "6 min" },
-        { instruction: "Keep left at the fork", distance: "2.3 km", time: "3 min" },
-        { instruction: "Take exit 25B for Downtown", distance: "0.8 km", time: "1 min" },
-        { instruction: "Turn right onto Market St", distance: "1.5 km", time: "5 min" },
-        { instruction: "Your destination is on the right", distance: "0 km", time: "0 min" }
-      ];
+      // Generate navigation steps based on destination
+      // In a real app, these would come from the routing API
+      let mockSteps: NavigationStep[] = [];
+      
+      // Customize steps based on destination for more realistic simulation
+      if (destination.toLowerCase().includes("hospital") || isEmergencyRoute) {
+        mockSteps = [
+          { instruction: "Turn right onto Emergency Lane", distance: "0.3 km", time: "1 min" },
+          { instruction: "Take the fast lane on Highway 101", distance: "4.2 km", time: "3 min" },
+          { instruction: "Take emergency exit toward Hospital", distance: "0.5 km", time: "1 min" },
+          { instruction: "Turn left at the Emergency entrance", distance: "0.2 km", time: "1 min" },
+          { instruction: "You have arrived at the Emergency Department", distance: "0 km", time: "0 min" }
+        ];
+      } else if (destination.toLowerCase().includes("airport")) {
+        mockSteps = [
+          { instruction: "Head east on Main St", distance: "1.2 km", time: "3 min" },
+          { instruction: "Take the ramp onto Airport Highway", distance: "5.8 km", time: "6 min" },
+          { instruction: "Keep left at the fork toward Terminals", distance: "2.1 km", time: "2 min" },
+          { instruction: "Take exit for Departures", distance: "0.7 km", time: "1 min" },
+          { instruction: "You have arrived at the Airport Terminal", distance: "0 km", time: "0 min" }
+        ];
+      } else if (destination.toLowerCase().includes("downtown")) {
+        mockSteps = [
+          { instruction: "Head north on Main St", distance: "0.5 km", time: "2 min" },
+          { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
+          { instruction: "Continue onto Downtown Plaza", distance: "0.8 km", time: "3 min" },
+          { instruction: "Turn left onto Market St", distance: "0.6 km", time: "2 min" },
+          { instruction: "Your destination is on the right", distance: "0 km", time: "0 min" }
+        ];
+      } else {
+        // Default route
+        mockSteps = [
+          { instruction: "Head north on Main St", distance: "0.5 km", time: "2 min" },
+          { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
+          { instruction: "Take the ramp onto Highway 101", distance: "5.8 km", time: "6 min" },
+          { instruction: "Keep left at the fork", distance: "2.3 km", time: "3 min" },
+          { instruction: "Take exit 25B for Downtown", distance: "0.8 km", time: "1 min" },
+          { instruction: "Turn right onto Market St", distance: "1.5 km", time: "5 min" },
+          { instruction: "Your destination is on the right", distance: "0 km", time: "0 min" }
+        ];
+      }
       
       setNavigationSteps(mockSteps);
       setCurrentStepIndex(0);
       
-      // Calculate estimated CO2 savings based on route (mock calculation)
+      // Calculate estimated CO2 savings based on route
       // In a real app, this would be based on vehicle type, route efficiency, etc.
       const routeDistance = mockSteps.reduce((total, step) => {
         const km = parseFloat(step.distance.replace(" km", "")) || 0;
@@ -169,9 +199,13 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         toast.error("Invalid origin or destination");
       }
       
-      // Set route as active and dispatch event
+      // Set route as active and dispatch event with navigation steps
       setRouteActive(true);
-      window.dispatchEvent(new CustomEvent('navigation:route-calculated'));
+      window.dispatchEvent(new CustomEvent('navigation:route-calculated', { 
+        detail: {
+          steps: mockSteps
+        }
+      }));
       
       // Start navigation simulation
       startNavigationSimulation();
