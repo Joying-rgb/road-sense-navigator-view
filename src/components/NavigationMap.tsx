@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Route, AlertTriangle } from "lucide-react";
+import { LanePosition } from "@/utils/lanePositionTypes";
 
 interface NavigationState {
   origin: string;
@@ -164,6 +165,14 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
           { instruction: "Continue onto Downtown Plaza", distance: "0.8 km", time: "3 min" },
           { instruction: "Turn left onto Market St", distance: "0.6 km", time: "2 min" },
           { instruction: "Your destination is on the right", distance: "0 km", time: "0 min" }
+        ];
+      } else if (destination.toLowerCase().includes("university")) {
+        mockSteps = [
+          { instruction: "Head west on Education Drive", distance: "0.4 km", time: "1 min" },
+          { instruction: "Turn onto University Boulevard", distance: "1.8 km", time: "3 min" },
+          { instruction: "Continue past the Science Building", distance: "0.6 km", time: "2 min" },
+          { instruction: "Turn right at Library Square", distance: "0.3 km", time: "1 min" },
+          { instruction: "You have arrived at the University campus", distance: "0 km", time: "0 min" }
         ];
       } else {
         // Default route
@@ -372,7 +381,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         </form>
         
         {/* Navigation Instructions */}
-        {navigationSteps.length > 0 && currentStepIndex < navigationSteps.length && (
+        {navigationSteps.length > 0 && currentStepIndex < navigationSteps.length && navigationSteps[currentStepIndex] && (
           <div className={`mb-3 p-3 rounded-lg ${isEmergencyRoute ? 'bg-red-500/10' : 'bg-accent/20'}`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium flex items-center">
