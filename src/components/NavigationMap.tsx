@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input"; 
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Route, AlertTriangle } from "lucide-react";
+import { Route, AlertTriangle, Navigation } from "lucide-react";
 import { LanePosition } from "@/utils/lanePositionTypes";
 
 interface NavigationState {
@@ -24,7 +24,18 @@ export interface NavigationStep {
   time: string;
 }
 
+interface Location {
+  lat: number;
+  lng: number;
+}
+
 const SERP_API_KEY = "c2242a49c3eda3248a47be63d8347d1ad9aa10ea0eef1d2326775c566ac0b6cd";
+
+// Mock current location that moves along the route
+const simulateMovement = (steps: NavigationStep[], progress: number): Location => {
+  // In a real app, this would be GPS data
+  return { lat: 37.7749 + (progress * 0.01), lng: -122.4194 + (progress * 0.01) };
+};
 
 const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapProps) => {
   const [origin, setOrigin] = useState("");
@@ -37,8 +48,14 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
   const [routeActive, setRouteActive] = useState(false);
   const [isEmergencyRoute, setIsEmergencyRoute] = useState(false);
   const [destinationReached, setDestinationReached] = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [distanceRemaining, setDistanceRemaining] = useState<string>("0 km");
+  const [timeRemaining, setTimeRemaining] = useState<string>("0 min");
+  const [currentLocation, setCurrentLocation] = useState<Location>({ lat: 37.7749, lng: -122.4194 });
+  
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const stepIntervalRef = useRef<number | null>(null);
+  const progressIntervalRef = useRef<number | null>(null);
   
   // Sync internal state with parent state if provided
   useEffect(() => {
@@ -88,6 +105,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         setRouteActive(false);
         setIsEmergencyRoute(false);
         setDestinationReached(false);
+        setProgressPercent(0);
         window.dispatchEvent(new CustomEvent('navigation:route-cancelled'));
       }
     };
@@ -100,6 +118,30 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       window.removeEventListener('emergency:clear', handleEmergencyClear);
     };
   }, [isEmergencyRoute, origin, setNavigationState]);
+  
+  // Function to calculate the total distance and time from the current step to the end
+  const calculateRemainingDistanceAndTime = (steps: NavigationStep[], currentIdx: number) => {
+    if (!steps || steps.length === 0 || currentIdx >= steps.length) {
+      return { distance: "0 km", time: "0 min" };
+    }
+    
+    let totalDistanceKm = 0;
+    let totalTimeMin = 0;
+    
+    for (let i = currentIdx; i < steps.length; i++) {
+      // Extract numeric values from strings like "5.2 km" and "3 min"
+      const distanceMatch = steps[i].distance.match(/(\d+\.?\d*)/);
+      const timeMatch = steps[i].time.match(/(\d+)/);
+      
+      if (distanceMatch) totalDistanceKm += parseFloat(distanceMatch[0]);
+      if (timeMatch) totalTimeMin += parseInt(timeMatch[0]);
+    }
+    
+    return { 
+      distance: `${totalDistanceKm.toFixed(1)} km`, 
+      time: `${totalTimeMin} min` 
+    };
+  };
   
   const handleRouteSearch = async (e?: React.FormEvent, skipValidation = false) => {
     if (e) e.preventDefault();
@@ -114,6 +156,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     
     setIsLoading(true);
     setDestinationReached(false);
+    setProgressPercent(0);
     
     try {
       // Create the SERP API request for directions
@@ -190,6 +233,11 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       setNavigationSteps(mockSteps);
       setCurrentStepIndex(0);
       
+      // Calculate initial remaining distance and time
+      const { distance, time } = calculateRemainingDistanceAndTime(mockSteps, 0);
+      setDistanceRemaining(distance);
+      setTimeRemaining(time);
+      
       // Calculate estimated CO2 savings based on route
       // In a real app, this would be based on vehicle type, route efficiency, etc.
       const routeDistance = mockSteps.reduce((total, step) => {
@@ -218,7 +266,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       }));
       
       // Start navigation simulation
-      startNavigationSimulation();
+      startNavigationSimulation(mockSteps);
     } catch (error) {
       console.error("Failed to fetch route:", error);
       toast.error("Failed to fetch route. Please try again.");
@@ -235,15 +283,21 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     setCo2Saved(0);
     setIsEmergencyRoute(false);
     setDestinationReached(false);
+    setProgressPercent(0);
     
     // Set route as inactive and dispatch event
     setRouteActive(false);
     window.dispatchEvent(new CustomEvent('navigation:route-cancelled'));
     
-    // Clear the interval if it exists
+    // Clear the intervals if they exist
     if (stepIntervalRef.current) {
       clearInterval(stepIntervalRef.current);
       stepIntervalRef.current = null;
+    }
+    
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
     
     // Update parent state if available
@@ -255,44 +309,80 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     }
   };
   
-  const startNavigationSimulation = () => {
+  const startNavigationSimulation = (steps: NavigationStep[]) => {
     // Reset index and destination reached status
     setCurrentStepIndex(0);
     setDestinationReached(false);
+    setProgressPercent(0);
     
-    // Clear existing interval if any
+    // Clear existing intervals if any
     if (stepIntervalRef.current) {
       clearInterval(stepIntervalRef.current);
     }
     
-    // Simulate navigation progress by advancing through steps
-    stepIntervalRef.current = window.setInterval(() => {
-      setCurrentStepIndex(prevIndex => {
-        const nextIndex = prevIndex + 1;
-        if (nextIndex >= navigationSteps.length - 1) { // Use length-1 to stop at last step
-          if (stepIntervalRef.current) {
-            clearInterval(stepIntervalRef.current);
-            stepIntervalRef.current = null;
-          }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+    
+    // Update progress more frequently (every 1 second)
+    progressIntervalRef.current = window.setInterval(() => {
+      setProgressPercent(prev => {
+        const stepDuration = 8; // seconds per step
+        const totalSteps = steps.length - 1; // subtract 1 because last step is arrival
+        const incrementPerSecond = 100 / (totalSteps * stepDuration);
+        
+        // Calculate new progress
+        const newProgress = Math.min(prev + incrementPerSecond, 100);
+        
+        // Update distance and time remaining based on progress
+        if (steps.length > 0) {
+          const progressRatio = newProgress / 100;
+          const completedStepIndex = Math.floor(progressRatio * (steps.length - 1));
+          const partialStep = progressRatio * (steps.length - 1) - completedStepIndex;
           
-          // Only show destination reached message if we're at the final step
-          if (nextIndex === navigationSteps.length - 1) {
-            setDestinationReached(true);
-            toast.success("You have reached your destination!");
-          }
+          // Calculate remaining distance and time for all future steps
+          const { distance, time } = calculateRemainingDistanceAndTime(steps, completedStepIndex);
+          setDistanceRemaining(distance);
+          setTimeRemaining(time);
           
-          return Math.min(nextIndex, navigationSteps.length - 1); // Don't exceed array bounds
+          // Update current location simulation
+          setCurrentLocation(simulateMovement(steps, newProgress));
         }
-        return nextIndex;
+        
+        // Move to the next step when we reach certain thresholds
+        const stepsProgress = (newProgress * (steps.length - 1) / 100);
+        const nextStepIndex = Math.floor(stepsProgress);
+        
+        if (nextStepIndex > currentStepIndex) {
+          setCurrentStepIndex(nextStepIndex);
+        }
+        
+        // If we've reached 100%, stop the interval and show destination reached
+        if (newProgress >= 100) {
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
+          
+          // Show destination reached message
+          setDestinationReached(true);
+          setCurrentStepIndex(steps.length - 1); // Show final instruction
+          toast.success("You have reached your destination!");
+        }
+        
+        return newProgress;
       });
-    }, 8000); // Advance to next step every 8 seconds
+    }, 1000);
   };
   
-  // Clean up interval on component unmount
+  // Clean up intervals on component unmount
   useEffect(() => {
     return () => {
       if (stepIntervalRef.current) {
         clearInterval(stepIntervalRef.current);
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
       }
     };
   }, []);
@@ -413,6 +503,30 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
                 </div>
               </div>
             </div>
+            
+            {/* Real-time progress bar */}
+            <div className="mt-3">
+              <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full ${isEmergencyRoute ? 'bg-red-500' : 'bg-primary'}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <div className="flex items-center">
+                  <Navigation className="h-3 w-3 mr-1" />
+                  {destinationReached ? "Arrived" : "In progress"}
+                </div>
+                {!destinationReached && (
+                  <div className="flex space-x-2">
+                    <span>{distanceRemaining} remaining</span>
+                    <span>•</span>
+                    <span>{timeRemaining} left</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
             {co2Saved > 0 && !isEmergencyRoute && (
               <div className="mt-2 text-xs flex items-center">
                 <span className="text-green-500 font-medium">
