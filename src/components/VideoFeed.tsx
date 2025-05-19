@@ -57,6 +57,8 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
   
   // Navigation and environmental info
   const [currentNavStep, setCurrentNavStep] = useState<NavigationStep | null>(null);
+  const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [co2Saved, setCo2Saved] = useState(0);
   const [weatherInfo, setWeatherInfo] = useState<WeatherInfo>({
     condition: 'sunny',
@@ -388,6 +390,8 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
     const handleRouteCancelled = () => {
       setHasActiveRoute(false);
       setCurrentNavStep(null);
+      setNavigationSteps([]);
+      setCurrentStepIndex(0);
       setCo2Saved(0);
     };
 
@@ -399,6 +403,8 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
     const handleEmergencyClear = () => {
       setHasActiveRoute(false);
       setCurrentNavStep(null);
+      setNavigationSteps([]);
+      setCurrentStepIndex(0);
     };
     
     window.addEventListener('navigation:route-calculated', handleRouteCalculated);
@@ -426,32 +432,43 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
         { instruction: "Exit right toward Downtown", distance: "1.0 km", time: "3 min" },
       ];
       
+      // Initialize navigation steps
+      setNavigationSteps(navSteps);
+      // Set initial step
+      setCurrentNavStep(navSteps[0]);
+      
       let stepIndex = 0;
       
       // Update navigation step every 10 seconds
       const navInterval = setInterval(() => {
-        setCurrentNavStep(navSteps[stepIndex]);
-        
-        // Calculate CO2 savings based on current step (mock calculation)
-        const distance = parseFloat(navSteps[stepIndex].distance.replace(" km", "")) || 0;
-        setCo2Saved(prev => prev + distance * 0.12); // 0.12kg CO2 saved per km (example)
-        
-        // Update weather randomly sometimes
-        if (Math.random() > 0.7) {
-          const conditions: ('sunny' | 'cloudy' | 'rainy' | 'snowy')[] = ['sunny', 'cloudy', 'rainy', 'snowy'];
-          setWeatherInfo({
-            condition: conditions[Math.floor(Math.random() * conditions.length)],
-            temperature: Math.floor(Math.random() * 15) + 15 // 15-30°C
-          });
+        if (stepIndex < navSteps.length) {
+          const currentStep = navSteps[stepIndex];
+          setCurrentNavStep(currentStep);
+          setCurrentStepIndex(stepIndex);
+          
+          // Calculate CO2 savings based on current step (mock calculation)
+          const distance = parseFloat(currentStep.distance.replace(" km", "")) || 0;
+          setCo2Saved(prev => prev + distance * 0.12); // 0.12kg CO2 saved per km (example)
+          
+          // Update weather randomly sometimes
+          if (Math.random() > 0.7) {
+            const conditions: ('sunny' | 'cloudy' | 'rainy' | 'snowy')[] = ['sunny', 'cloudy', 'rainy', 'snowy'];
+            setWeatherInfo({
+              condition: conditions[Math.floor(Math.random() * conditions.length)],
+              temperature: Math.floor(Math.random() * 15) + 15 // 15-30°C
+            });
+          }
+          
+          stepIndex = (stepIndex + 1) % navSteps.length;
         }
-        
-        stepIndex = (stepIndex + 1) % navSteps.length;
       }, 10000);
       
       return () => clearInterval(navInterval);
     } else if (!hasActiveRoute) {
       // Reset navigation step when no route is active
       setCurrentNavStep(null);
+      setNavigationSteps([]);
+      setCurrentStepIndex(0);
     }
   }, [isPlaying, hasActiveRoute]);
 
