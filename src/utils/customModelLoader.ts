@@ -77,10 +77,14 @@ export const runCustomModelInference = async (
   try {
     // Convert input to tensor if it's not already
     let imageTensor: tf.Tensor3D | tf.Tensor4D;
+    let shouldCleanupImageTensor = false;
+    
     if (image instanceof tf.Tensor) {
       imageTensor = image as tf.Tensor3D;
+      shouldCleanupImageTensor = false; // Don't dispose it as it was passed in
     } else {
       imageTensor = tf.browser.fromPixels(image);
+      shouldCleanupImageTensor = true; // We created this tensor, so we should clean it up
     }
     
     // Prepare input tensor based on model requirements
@@ -210,9 +214,10 @@ export const runCustomModelInference = async (
     }
     
     // Clean up tensors
-    if (!image.dispose) { // Check if image is a tensor
+    if (shouldCleanupImageTensor) {
       imageTensor.dispose();
     }
+    
     processedTensor.dispose();
     
     if (Array.isArray(result)) {

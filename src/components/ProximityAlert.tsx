@@ -46,7 +46,7 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
     return () => clearInterval(interval);
   }, []);
   
-  // Auto recording based on proximity - triggered at 10cm
+  // Auto recording based on proximity - triggered exactly at 10cm
   useEffect(() => {
     if (distance <= 10 && !isRecording) {
       setIsRecording(true);
@@ -65,8 +65,14 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
       setCollisionWarning(true);
       setTimeout(() => setCollisionWarning(false), 2000);
       
+      // At exactly 10cm, save the recording automatically
+      if (distance === 10) {
+        toast.success(`Critical distance (10cm) reached! Recording saved automatically`, {
+          duration: 5000,
+        });
+      }
     } else if (distance > 10 && isRecording) {
-      // Only stop recording when object moves away from critical distance
+      // Stop recording when object moves away from critical distance
       setIsRecording(false);
       console.log("Stopped recording - safe distance reached");
       
@@ -153,6 +159,14 @@ const ProximityAlert = ({ onRecordingStart, onRecordingStop }: ProximityAlertPro
               {distance <= 10 
                 ? "Critical: Automatic recording activated" 
                 : "Warning: Maintain safe distance"}
+            </p>
+          </div>
+        )}
+        
+        {distance === 10 && (
+          <div className="mt-3 text-center bg-dashboard-red/10 p-2 rounded-md">
+            <p className="text-xs text-dashboard-red font-medium">
+              ⚠️ 10cm threshold reached - Recording saved automatically
             </p>
           </div>
         )}

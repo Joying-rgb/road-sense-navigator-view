@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,23 +9,6 @@ import { toast } from "sonner";
 
 // Load COCO-SSD model (in a real implementation, we would use YOLOv10)
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
-
-// Import custom model utilities
-import { 
-  loadCustomModel, 
-  runCustomModelInference, 
-  CustomModel, 
-  CustomModelConfig 
-} from "@/utils/customModelLoader";
-
-// Import filtering utilities
-import { 
-  applyHSVFilter, 
-  performContourAnalysis, 
-  trackDetections, 
-  HSVFilterParams,
-  DetectionWithHistory 
-} from "@/utils/imageFiltering";
 
 interface Detection {
   id: number;
@@ -88,20 +72,6 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
   // Animation frame reference
   const requestAnimationFrameRef = useRef<number | null>(null);
   
-  // New state for custom fallback model
-  const [customModel, setCustomModel] = useState<CustomModel | null>(null);
-  const [isCustomModelEnabled, setIsCustomModelEnabled] = useState(false);
-  const [trackedDetections, setTrackedDetections] = useState<DetectionWithHistory[]>([]);
-  const [hsvFilterParams, setHsvFilterParams] = useState<HSVFilterParams>({
-    hueMin: 0,
-    hueMax: 180,
-    satMin: 0,
-    satMax: 255,
-    valMin: 0,
-    valMax: 255
-  });
-  const [useFallbackModel, setUseFallbackModel] = useState(false);
-  
   // Expose videoRef via forwardRef
   React.useEffect(() => {
     if (ref) {
@@ -157,24 +127,6 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
       }
     };
   }, [modelType]);
-
-  // Handle custom model loading
-  const handleCustomModelLoaded = async (config: CustomModelConfig) => {
-    try {
-      const loadedModel = await loadCustomModel(config);
-      setCustomModel(loadedModel);
-      setIsCustomModelEnabled(true);
-      toast.success(`Custom model "${config.name}" is now available as a fallback`);
-    } catch (error) {
-      console.error("Error loading custom model:", error);
-      toast.error("Failed to load custom model");
-    }
-  };
-  
-  // Handle HSV filter parameter changes
-  const handleFilterParamsChange = (params: HSVFilterParams) => {
-    setHsvFilterParams(params);
-  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -276,63 +228,14 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
             }));
         }
         
-        // Check if we need to use fallback model
-        const shouldUseFallback = 
-          (detectedObjects.length === 0 || useFallbackModel) && 
-          customModel && 
-          isCustomModelEnabled;
-        
-        if (shouldUseFallback) {
-          // Apply HSV filtering if needed
-          let filteredFrame: tf.Tensor3D | null = null;
-          try {
-            filteredFrame = await applyHSVFilter(video, hsvFilterParams);
-            
-            // Run custom model inference
-            const customDetections = await runCustomModelInference(customModel, filteredFrame);
-            
-            // Add custom detections to results
-            const customDetectionObjects = customDetections.map((det, index) => ({
-              id: detectedObjects.length + index,
-              class: `Custom: ${det.class}`,
-              confidence: det.confidence,
-              bbox: det.bbox
-            }));
-            
-            detectedObjects = [...detectedObjects, ...customDetectionObjects];
-            
-          } catch (error) {
-            console.error("Error with custom model detection:", error);
-          } finally {
-            // Clean up tensor
-            if (filteredFrame) {
-              filteredFrame.dispose();
-            }
-          }
-        }
-        
-        // Prepare detections for tracking
-        const detectionsForTracking: DetectionWithHistory[] = detectedObjects.map(det => ({
-          ...det,
-          framesDetected: 1,
-          lastSeen: Date.now()
-        }));
-        
-        // Apply tracking to reduce false positives/negatives
-        const tracked = trackDetections(detectionsForTracking, trackedDetections);
-        setTrackedDetections(tracked);
-        
-        // Only consider detections that have been seen for multiple frames
-        const persistentDetections = tracked.filter(det => det.framesDetected > 2);
-        
-        // Update detections state with filtered results
-        setDetections(persistentDetections);
+        // Update detections state with results
+        setDetections(detectedObjects);
         
         // Calculate traffic flow metrics based on detections
-        analyzeTrafficFlow(persistentDetections);
+        analyzeTrafficFlow(detectedObjects);
         
         // Draw on canvas
-        drawDetections(persistentDetections);
+        drawDetections(detectedObjects);
       }
     } catch (error) {
       console.error("Detection error:", error);
@@ -343,7 +246,7 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
   };
   
   // Analyze traffic flow based on detections
-  const analyzeTrafficFlow = (detections: Detection[] | DetectionWithHistory[]) => {
+  const analyzeTrafficFlow = (detections: Detection[]) => {
     // Count vehicles
     const vehicleClasses = ['car', 'truck', 'bus', 'motorcycle', 'bicycle'];
     const vehicleCount = detections.filter(d => vehicleClasses.includes(d.class.toLowerCase())).length;
@@ -371,7 +274,7 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
   };
   
   // Function to draw bounding boxes on canvas
-  const drawDetections = (detects: Detection[] | DetectionWithHistory[]) => {
+  const drawDetections = (detects: Detection[]) => {
     const canvas = canvasRef.current;
     if (!canvas || !videoRef.current) return;
     
@@ -393,31 +296,26 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
       let color;
       const lowerClass = detection.class.toLowerCase();
       
-      // Special color for custom model detections
-      if (lowerClass.startsWith('custom:')) {
-        color = '#F97316'; // orange for custom detections
-      } else {
-        switch (lowerClass) {
-          case 'car':
-          case 'truck':
-          case 'bus':
-            color = '#0EA5E9'; // blue
-            break;
-          case 'person':
-            color = '#F97316'; // orange
-            break;
-          case 'bicycle':
-          case 'motorcycle':
-            color = '#A855F7'; // purple
-            break;
-          case 'traffic light':
-          case 'traffic sign':
-          case 'stop sign':
-            color = '#EF4444'; // red
-            break;
-          default:
-            color = '#10B981'; // green
-        }
+      switch (lowerClass) {
+        case 'car':
+        case 'truck':
+        case 'bus':
+          color = '#0EA5E9'; // blue
+          break;
+        case 'person':
+          color = '#F97316'; // orange
+          break;
+        case 'bicycle':
+        case 'motorcycle':
+          color = '#A855F7'; // purple
+          break;
+        case 'traffic light':
+        case 'traffic sign':
+        case 'stop sign':
+          color = '#EF4444'; // red
+          break;
+        default:
+          color = '#10B981'; // green
       }
       
       // Draw rectangle
@@ -427,11 +325,8 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
       
       // Draw label background
       ctx.fillStyle = color;
-      const confidenceText = 'confidence' in detection ? 
-        `${Math.round(detection.confidence * 100)}%` : '';
-      const trackingInfo = 'trackId' in detection ? 
-        ` #${(detection as DetectionWithHistory).trackId}` : '';
-      const label = `${detection.class} ${confidenceText}${trackingInfo}`;
+      const confidenceText = `${Math.round(detection.confidence * 100)}%`;
+      const label = `${detection.class} ${confidenceText}`;
       const textWidth = ctx.measureText(label).width;
       ctx.fillRect(x, y - 25, textWidth + 10, 25);
       
@@ -468,16 +363,6 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
       }
       setIsPlaying(!isPlaying);
     }
-  };
-  
-  // Toggle use of fallback model
-  const toggleFallbackModel = () => {
-    setUseFallbackModel(prev => !prev);
-    toast.info(
-      useFallbackModel ? 
-      "Using primary model with fallback only when needed" : 
-      "Always using fallback model for detection"
-    );
   };
   
   // When video is playing and model is loaded, run object detection
@@ -691,15 +576,6 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
           >
             {modelType === 'yolo' ? 'Using YOLOv10' : 'Using COCO-SSD'}
           </Button>
-          {isCustomModelEnabled && (
-            <Button
-              variant={useFallbackModel ? "secondary" : "outline"}
-              size="sm"
-              onClick={toggleFallbackModel}
-            >
-              {useFallbackModel ? "Fallback Active" : "Auto Fallback"}
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent className="p-2 relative">
@@ -731,12 +607,6 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
                   {modelType === 'yolo' ? 'YOLOv10' : 'Object detection'} model loaded and ready
                 </p> : 
                 <p>Loading {modelType === 'yolo' ? 'YOLOv10' : 'object detection'} model...</p>}
-              
-              {customModel && (
-                <p className="text-green-500 mt-1">
-                  Custom fallback model loaded
-                </p>
-              )}
             </div>
           </div>
         ) : (
@@ -780,11 +650,6 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
               <div className="bg-black/50 text-white text-xs px-2 py-1 rounded">
                 {detections.length} objects detected
               </div>
-              {isCustomModelEnabled && (
-                <div className="bg-black/50 text-white text-xs px-2 py-1 rounded">
-                  Fallback: {useFallbackModel ? "Always On" : "Auto"}
-                </div>
-              )}
             </div>
           </div>
         )}
