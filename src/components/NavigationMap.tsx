@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input"; 
@@ -371,7 +372,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         </form>
         
         {/* Navigation Instructions */}
-        {navigationSteps.length > 0 && (
+        {navigationSteps.length > 0 && currentStepIndex < navigationSteps.length && (
           <div className={`mb-3 p-3 rounded-lg ${isEmergencyRoute ? 'bg-red-500/10' : 'bg-accent/20'}`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium flex items-center">
