@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { VideoOff, Video, Play, Pause, Camera, ArrowRight, Leaf } from "lucide-react";
+import { VideoOff, Video, Play, Pause, Camera, ArrowRight, Leaf, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as tf from "@tensorflow/tfjs";
 import { toast } from "sonner";

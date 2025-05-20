@@ -1,12 +1,10 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Route, AlertTriangle, Navigation, ArrowRight } from "lucide-react";
+import { Route, AlertTriangle, Navigation, ArrowRight, MapPin } from "lucide-react";
 import { getDirections, DirectionStep, DirectionsResult } from "@/utils/serpApiUtils";
 import { PlaceSearch } from "@/components/PlaceSearch";
-import { Progress } from "@/components/ui/progress";
 import { PlaceSuggestion } from "@/utils/serpApiUtils";
 
 interface NavigationState {
@@ -30,6 +28,9 @@ const simulateMovement = (steps: DirectionStep[], progress: number): Location =>
   // In a real app, this would be GPS data
   return { lat: 37.7749 + (progress * 0.01), lng: -122.4194 + (progress * 0.01) };
 };
+
+// Export the DirectionStep type so it can be imported by VideoFeed
+export type NavigationStep = DirectionStep;
 
 const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapProps) => {
   const [origin, setOrigin] = useState("");
@@ -68,7 +69,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         }
       }
     }
-  }, [navigationState]);
+  }, [navigationState, destination]);
   
   // Listen for emergency navigation events
   useEffect(() => {
