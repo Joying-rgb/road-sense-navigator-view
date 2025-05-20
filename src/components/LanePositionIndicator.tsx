@@ -1,80 +1,13 @@
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { LanePosition, isLeftLane, isCenteredLane, isRightLane } from "@/utils/lanePositionTypes";
+import { useDetection } from "@/context/DetectionContext";
 
-// Add type guard functions if not exported from utils/lanePositionTypes
 const LanePositionIndicator = () => {
-  const [currentPosition, setCurrentPosition] = useState<LanePosition>('centered');
-  const [idealPosition, setIdealPosition] = useState<LanePosition>('centered');
-  const [score, setScore] = useState(100);
-
-  // Simulate lane position changes
-  useEffect(() => {
-    // Initial position calculation
-    calculateIdealPosition();
-    
-    // Update lane position every 10 seconds
-    const positionInterval = setInterval(() => {
-      // Randomly change position occasionally
-      if (Math.random() > 0.7) {
-        const positions: LanePosition[] = ['left', 'centered', 'right'];
-        const newPosition = positions[Math.floor(Math.random() * positions.length)];
-        setCurrentPosition(newPosition);
-      }
-      
-      // Recalculate ideal position
-      calculateIdealPosition();
-    }, 10000);
-    
-    // Score update every 3 seconds
-    const scoreInterval = setInterval(() => {
-      updateScore();
-    }, 3000);
-    
-    return () => {
-      clearInterval(positionInterval);
-      clearInterval(scoreInterval);
-    };
-  }, []);
-  
-  // Calculate ideal lane position based on various factors
-  const calculateIdealPosition = () => {
-    // In a real app, this would consider traffic, route, obstacles, etc.
-    // For demo, we'll use a simple algorithm
-    
-    // Example: If we're shifting from left to right lanes gradually
-    if (isLeftLane(currentPosition)) {
-      // If currently in left lane, suggest moving to center
-      setIdealPosition('centered');
-    } else if (isRightLane(currentPosition)) {
-      // If currently in right lane, suggest staying there
-      setIdealPosition('right');
-    } else {
-      // If currently centered, randomly suggest
-      const suggestions: LanePosition[] = ['centered', 'right'];
-      setIdealPosition(suggestions[Math.floor(Math.random() * suggestions.length)]);
-    }
-  };
-  
-  // Update lane positioning score
-  const updateScore = () => {
-    // In a real app, this would be based on lane discipline, following suggestions, etc.
-    // For demo, we'll calculate it based on current vs ideal position
-    
-    let newScore = score;
-    
-    if (currentPosition === idealPosition) {
-      // If in ideal position, increase score
-      newScore = Math.min(100, score + 2);
-    } else {
-      // If not in ideal position, decrease score
-      newScore = Math.max(60, score - 5);
-    }
-    
-    setScore(newScore);
-  };
+  const { laneData } = useDetection();
+  const { position, idealPosition, score, deviation } = laneData;
 
   return (
     <Card className="h-full">
@@ -84,43 +17,63 @@ const LanePositionIndicator = () => {
       <CardContent>
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className={`p-2 rounded-lg flex items-center justify-center border ${
-            isLeftLane(currentPosition) ? 'bg-accent border-accent-foreground' : 'bg-muted border-transparent'
+            isLeftLane(position as LanePosition) ? 'bg-accent border-accent-foreground' : 'bg-muted border-transparent'
           }`}>
             <ChevronLeft className="h-6 w-6" />
             <span>Left</span>
           </div>
           <div className={`p-2 rounded-lg flex items-center justify-center border ${
-            isCenteredLane(currentPosition) ? 'bg-accent border-accent-foreground' : 'bg-muted border-transparent'
+            isCenteredLane(position as LanePosition) ? 'bg-accent border-accent-foreground' : 'bg-muted border-transparent'
           }`}>
             <span>Center</span>
           </div>
           <div className={`p-2 rounded-lg flex items-center justify-center border ${
-            isRightLane(currentPosition) ? 'bg-accent border-accent-foreground' : 'bg-muted border-transparent'
+            isRightLane(position as LanePosition) ? 'bg-accent border-accent-foreground' : 'bg-muted border-transparent'
           }`}>
             <span>Right</span>
             <ChevronRight className="h-6 w-6" />
           </div>
         </div>
         
-        {currentPosition !== idealPosition && (
+        {/* Lane deviation indicator */}
+        <div className="mb-4">
+          <p className="text-sm font-medium mb-1">Lane Centering:</p>
+          <div className="h-4 bg-muted rounded-full relative overflow-hidden">
+            <div 
+              className="absolute h-full bg-primary w-2" 
+              style={{ 
+                left: `calc(50% + ${deviation * 3}%)`,
+                transform: 'translateX(-50%)'
+              }}
+            ></div>
+            {/* Lane markers */}
+            <div className="absolute left-0 right-0 top-0 bottom-0 flex justify-between px-4">
+              <div className="h-full w-px bg-muted-foreground/30"></div>
+              <div className="h-full w-px bg-muted-foreground/30"></div>
+              <div className="h-full w-px bg-muted-foreground/30"></div>
+            </div>
+          </div>
+        </div>
+        
+        {position !== idealPosition && (
           <div className="bg-muted p-3 rounded-lg mb-4">
             <p className="text-sm font-medium mb-2">Suggested Lane Change:</p>
             <div className="flex items-center justify-center gap-4">
-              {isLeftLane(idealPosition) && !isLeftLane(currentPosition) && (
+              {isLeftLane(idealPosition as LanePosition) && !isLeftLane(position as LanePosition) && (
                 <div className="flex items-center text-primary">
                   <ArrowLeft className="mr-1 h-5 w-5" />
                   <span>Move Left</span>
                 </div>
               )}
               
-              {isRightLane(idealPosition) && !isRightLane(currentPosition) && (
+              {isRightLane(idealPosition as LanePosition) && !isRightLane(position as LanePosition) && (
                 <div className="flex items-center text-primary">
                   <span>Move Right</span>
                   <ArrowRight className="ml-1 h-5 w-5" />
                 </div>
               )}
               
-              {isCenteredLane(idealPosition) && !isCenteredLane(currentPosition) && (
+              {isCenteredLane(idealPosition as LanePosition) && !isCenteredLane(position as LanePosition) && (
                 <div className="flex items-center text-primary">
                   <span>Move to Center Lane</span>
                 </div>

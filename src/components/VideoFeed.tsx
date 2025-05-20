@@ -6,9 +6,13 @@ import { cn } from "@/lib/utils";
 import * as tf from "@tensorflow/tfjs";
 import { toast } from "sonner";
 import { NavigationStep } from "@/components/NavigationMap";
+import { useDetection, DetectedVehicle, LaneData } from "@/context/DetectionContext";
 
 // Load COCO-SSD model (in a real implementation, we would use YOLOv10)
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
+
+// Import lane detection utilities
+import { performContourAnalysis } from "@/utils/imageFiltering";
 
 interface Detection {
   id: number;
@@ -67,6 +71,9 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
   
   // Animation frame reference
   const requestAnimationFrameRef = useRef<number | null>(null);
+  
+  // Get the detection context
+  const { setDetectedVehicles, setLaneData } = useDetection();
   
   // Expose videoRef via forwardRef
   React.useEffect(() => {
@@ -194,7 +201,7 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
     }
   };
 
-  // Function to detect objects in current video frame
+  // Enhanced function to detect objects and lanes in current video frame
   const detectObjects = async () => {
     if (!videoRef.current || !canvasRef.current || 
         videoRef.current.paused || videoRef.current.ended || 
@@ -227,8 +234,62 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
         // Update detections state with results
         setDetections(detectedObjects);
         
+        // Extract vehicle data and calculate risk
+        const vehicleDetections = detectedObjects
+          .filter(obj => ['car', 'truck', 'bus', 'motorcycle', 'bicycle'].includes(obj.class.toLowerCase()))
+          .map(obj => {
+            // Calculate distance based on object size (larger = closer)
+            const boxArea = obj.bbox[2] * obj.bbox[3];
+            const frameArea = video.videoWidth * video.videoHeight;
+            const relativeSizeRatio = boxArea / frameArea;
+            
+            // Estimate distance based on size (smaller objects are further away)
+            // This is a simplified model - in reality would need camera calibration
+            const distance = Math.max(5, 50 * (1 - Math.sqrt(relativeSizeRatio)));
+            
+            // Calculate speed based on relative position change (not implemented in this demo)
+            const speed = Math.random() * 40 + 30; // Simulated between 30-70km/h
+            
+            // Determine if vehicle is approaching based on position in frame
+            // Objects lower in the frame are typically closer to the camera
+            const yCenter = obj.bbox[1] + obj.bbox[3]/2;
+            const frameHeight = video.videoHeight;
+            const verticalPosition = yCenter / frameHeight;
+            
+            // Objects in lower half of frame are closer, thus "approaching"
+            const trajectory = verticalPosition > 0.5 ? "approaching" : 
+                           verticalPosition > 0.3 ? "parallel" : "departing";
+            
+            // Calculate collision risk
+            // Higher risk for larger objects (closer), approaching trajectory
+            let collisionRisk = relativeSizeRatio * 2.5; // Basic risk based on size
+            
+            if (trajectory === "approaching") {
+              collisionRisk *= 1.5; // Increase risk for approaching vehicles
+            }
+            
+            // Ensure risk is between 0-1
+            collisionRisk = Math.min(1, Math.max(0, collisionRisk));
+            
+            return {
+              id: obj.id,
+              type: obj.class.toLowerCase() as "car" | "truck" | "motorcycle" | "bus" | "bicycle",
+              distance,
+              speed,
+              trajectory: trajectory as "approaching" | "departing" | "parallel",
+              collisionRisk,
+              bbox: obj.bbox
+            };
+          });
+        
+        // Update the context with detected vehicles
+        setDetectedVehicles(vehicleDetections);
+        
         // Calculate traffic flow metrics based on detections
         analyzeTrafficFlow(detectedObjects);
+        
+        // Detect lane position
+        detectLanePosition(video);
         
         // Draw on canvas
         drawDetections(detectedObjects);
@@ -239,6 +300,145 @@ const VideoFeed = forwardRef<HTMLVideoElement, VideoFeedProps>(({ isRecording = 
     
     // Continue detection loop
     requestAnimationFrameRef.current = requestAnimationFrame(detectObjects);
+  };
+
+  // Function to detect lane markings and calculate position
+  const detectLanePosition = async (video: HTMLVideoElement) => {
+    try {
+      // In a real implementation, this would use computer vision to detect lanes
+      // For this demo, we'll create a more advanced simulation based on detected objects
+      
+      // Create a video snapshot for processing
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      ctx.drawImage(video, 0, 0);
+      
+      // Convert to grayscale for lane detection (simplified)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const { data } = imageData;
+      
+      // Scan the bottom quarter of the image for lane-like features
+      // This is a simplified lane detection algorithm
+      const scanHeight = Math.floor(canvas.height * 0.75);
+      
+      // Check for bright vertical regions (potential lane markings)
+      let leftLaneStrength = 0;
+      let centerLaneStrength = 0;
+      let rightLaneStrength = 0;
+      
+      // Divide the image into three regions
+      const leftRegion = Math.floor(canvas.width * 0.3);
+      const rightRegion = Math.floor(canvas.width * 0.7);
+      
+      // Scan for bright pixels that could be lane markings
+      for (let x = 0; x < canvas.width; x++) {
+        const idx = ((scanHeight * canvas.width) + x) * 4;
+        const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        
+        // High brightness could indicate lane marking
+        if (brightness > 200) {
+          if (x < leftRegion) {
+            leftLaneStrength++;
+          } else if (x > rightRegion) {
+            rightLaneStrength++;
+          } else {
+            centerLaneStrength++;
+          }
+        }
+      }
+      
+      // Normalize strengths
+      const totalStrength = Math.max(1, leftLaneStrength + centerLaneStrength + rightLaneStrength);
+      const leftConfidence = leftLaneStrength / totalStrength;
+      const centerConfidence = centerLaneStrength / totalStrength;
+      const rightConfidence = rightLaneStrength / totalStrength;
+      
+      // Determine vehicle's position within lane
+      // In a real system, this would be much more sophisticated
+      let position: 'left' | 'centered' | 'right';
+      let confidence = 0.7; // Base confidence
+      let deviation = 0;
+      
+      // Simple position algorithm based on detected lane strengths
+      if (leftConfidence > centerConfidence && leftConfidence > rightConfidence) {
+        position = 'left';
+        deviation = Math.floor(Math.random() * 10) - 5; // slight random deviation
+      } else if (rightConfidence > centerConfidence && rightConfidence > leftConfidence) {
+        position = 'right';
+        deviation = Math.floor(Math.random() * 10) - 5; // slight random deviation
+      } else {
+        position = 'centered';
+        deviation = Math.floor(Math.random() * 6) - 3; // smaller deviation when centered
+      }
+      
+      // Determine ideal position based on context
+      // In real implementation, this would consider traffic, obstacles, route, etc.
+      let idealPosition: 'left' | 'centered' | 'right' = 'centered';
+      
+      // Check for vehicles in our lane
+      const vehiclesAhead = detections
+        .filter(d => ['car', 'truck', 'bus', 'motorcycle'].includes(d.class.toLowerCase()))
+        .filter(d => {
+          // Check if this vehicle is roughly in our lane
+          const centerX = d.bbox[0] + d.bbox[2]/2;
+          const relativeX = centerX / video.videoWidth;
+          
+          // Check position relative to our current lane
+          if (position === 'left' && relativeX < 0.4) return true;
+          if (position === 'centered' && relativeX > 0.3 && relativeX < 0.7) return true;
+          if (position === 'right' && relativeX > 0.6) return true;
+          return false;
+        });
+      
+      if (vehiclesAhead.length > 0) {
+        // If vehicles ahead in our lane, suggest changing lanes
+        if (position === 'left') {
+          idealPosition = 'centered';
+        } else if (position === 'right') {
+          idealPosition = 'centered';
+        } else {
+          // If we're in center lane with vehicles ahead, check which side has fewer vehicles
+          const leftVehicles = detections.filter(d => {
+            const centerX = d.bbox[0] + d.bbox[2]/2;
+            const relativeX = centerX / video.videoWidth;
+            return relativeX < 0.4;
+          }).length;
+          
+          const rightVehicles = detections.filter(d => {
+            const centerX = d.bbox[0] + d.bbox[2]/2;
+            const relativeX = centerX / video.videoWidth;
+            return relativeX > 0.6;
+          }).length;
+          
+          idealPosition = leftVehicles <= rightVehicles ? 'left' : 'right';
+        }
+      } else {
+        // No vehicles ahead, suggest rightmost lane as ideal (common driving practice)
+        idealPosition = 'right';
+      }
+      
+      // Calculate score based on position vs ideal position
+      let score = 100;
+      if (position !== idealPosition) {
+        score = Math.max(60, 100 - Math.floor(Math.random() * 30));
+      }
+      
+      // Update lane data in context
+      setLaneData({
+        position,
+        confidence,
+        deviation,
+        idealPosition,
+        score
+      });
+      
+    } catch (error) {
+      console.error("Lane detection error:", error);
+    }
   };
   
   // Analyze traffic flow based on detections
