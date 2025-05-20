@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Check, Loader2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPlaceSuggestions, PlaceSuggestion } from "@/utils/serpApiUtils";
+import { toast } from "sonner";
 
 interface PlaceSearchProps {
   placeholder?: string;
@@ -20,6 +21,7 @@ export function PlaceSearch({ placeholder = "Search places...", value = "", onCh
   const [inputValue, setInputValue] = useState(value);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const debouncedValueRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -30,16 +32,26 @@ export function PlaceSearch({ placeholder = "Search places...", value = "", onCh
   const fetchSuggestions = async (query: string) => {
     if (query.trim().length < 2) {
       setSuggestions([]);
+      setError(null);
       return;
     }
 
     setLoading(true);
+    setError(null);
+    
     try {
       const results = await getPlaceSuggestions(query);
       setSuggestions(results);
+      if (results.length === 0) {
+        setError(`No results found for "${query}"`);
+      }
     } catch (error) {
       console.error("Error fetching suggestions:", error);
       setSuggestions([]);
+      setError("Failed to fetch suggestions from SERP API");
+      toast.error("Failed to fetch place suggestions", { 
+        description: "Please check your internet connection and try again" 
+      });
     } finally {
       setLoading(false);
     }
@@ -90,35 +102,47 @@ export function PlaceSearch({ placeholder = "Search places...", value = "", onCh
             <CommandList>
               {inputValue.length > 0 && (
                 <>
-                  <CommandEmpty>No places found</CommandEmpty>
-                  <CommandGroup heading="Suggestions">
-                    {suggestions.map((suggestion) => (
-                      <CommandItem
-                        key={suggestion.id}
-                        value={suggestion.name}
-                        onSelect={() => handleSelectSuggestion(suggestion)}
-                        className="flex items-center gap-2 py-3"
-                      >
-                        <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <div className="flex flex-col text-sm">
-                          <span className="font-medium">{suggestion.name}</span>
-                          {suggestion.address && (
-                            <span className="text-muted-foreground text-xs line-clamp-1">
-                              {suggestion.address}
-                            </span>
-                          )}
-                        </div>
-                        <Check
-                          className={cn(
-                            "ml-auto h-4 w-4",
-                            value === suggestion.name
-                              ? "opacity-100"
-                              : "opacity-0"
-                          )}
-                        />
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+                  {error ? (
+                    <CommandEmpty className="py-6 text-center">
+                      <div className="text-muted-foreground mb-2">{error}</div>
+                      <div className="text-sm">Try adjusting your search or being more specific</div>
+                    </CommandEmpty>
+                  ) : (
+                    <>
+                      {suggestions.length === 0 && !loading ? (
+                        <CommandEmpty>No places found</CommandEmpty>
+                      ) : (
+                        <CommandGroup heading="Suggestions">
+                          {suggestions.map((suggestion) => (
+                            <CommandItem
+                              key={suggestion.id}
+                              value={suggestion.name}
+                              onSelect={() => handleSelectSuggestion(suggestion)}
+                              className="flex items-center gap-2 py-3"
+                            >
+                              <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <div className="flex flex-col text-sm">
+                                <span className="font-medium">{suggestion.name}</span>
+                                {suggestion.address && (
+                                  <span className="text-muted-foreground text-xs line-clamp-1">
+                                    {suggestion.address}
+                                  </span>
+                                )}
+                              </div>
+                              <Check
+                                className={cn(
+                                  "ml-auto h-4 w-4",
+                                  value === suggestion.name
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </>
+                  )}
                 </>
               )}
             </CommandList>
