@@ -1,11 +1,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input"; 
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Route, AlertTriangle, Navigation } from "lucide-react";
-import { LanePosition } from "@/utils/lanePositionTypes";
+import { Route, AlertTriangle, Navigation, ArrowRight } from "lucide-react";
+import { getDirections, DirectionStep, DirectionsResult } from "@/utils/serpApiUtils";
+import { PlaceSearch } from "@/components/PlaceSearch";
+import { Progress } from "@/components/ui/progress";
+import { PlaceSuggestion } from "@/utils/serpApiUtils";
 
 interface NavigationState {
   origin: string;
@@ -18,31 +20,25 @@ interface NavigationMapProps {
   setNavigationState?: React.Dispatch<React.SetStateAction<NavigationState>>;
 }
 
-export interface NavigationStep {
-  instruction: string;
-  distance: string;
-  time: string;
-}
-
 interface Location {
   lat: number;
   lng: number;
 }
 
-const SERP_API_KEY = "c2242a49c3eda3248a47be63d8347d1ad9aa10ea0eef1d2326775c566ac0b6cd";
-
 // Mock current location that moves along the route
-const simulateMovement = (steps: NavigationStep[], progress: number): Location => {
+const simulateMovement = (steps: DirectionStep[], progress: number): Location => {
   // In a real app, this would be GPS data
   return { lat: 37.7749 + (progress * 0.01), lng: -122.4194 + (progress * 0.01) };
 };
 
 const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapProps) => {
   const [origin, setOrigin] = useState("");
+  const [originSuggestion, setOriginSuggestion] = useState<PlaceSuggestion | undefined>(undefined);
   const [destination, setDestination] = useState("");
+  const [destinationSuggestion, setDestinationSuggestion] = useState<PlaceSuggestion | undefined>(undefined);
   const [mapUrl, setMapUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([]);
+  const [navigationSteps, setNavigationSteps] = useState<DirectionStep[]>([]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [co2Saved, setCo2Saved] = useState<number>(0);
   const [routeActive, setRouteActive] = useState(false);
@@ -52,6 +48,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
   const [distanceRemaining, setDistanceRemaining] = useState<string>("0 km");
   const [timeRemaining, setTimeRemaining] = useState<string>("0 min");
   const [currentLocation, setCurrentLocation] = useState<Location>({ lat: 37.7749, lng: -122.4194 });
+  const [directions, setDirections] = useState<DirectionsResult | null>(null);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const stepIntervalRef = useRef<number | null>(null);
@@ -120,7 +117,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
   }, [isEmergencyRoute, origin, setNavigationState]);
   
   // Function to calculate the total distance and time from the current step to the end
-  const calculateRemainingDistanceAndTime = (steps: NavigationStep[], currentIdx: number) => {
+  const calculateRemainingDistanceAndTime = (steps: DirectionStep[], currentIdx: number) => {
     if (!steps || steps.length === 0 || currentIdx >= steps.length) {
       return { distance: "0 km", time: "0 min" };
     }
@@ -159,12 +156,14 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     setProgressPercent(0);
     
     try {
-      // Create the SERP API request for directions
-      const searchQuery = `${currentOrigin} to ${destination} directions`;
-      const apiUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${SERP_API_KEY}`;
+      // Get directions from SERP API
+      const directionsResult = await getDirections(currentOrigin, destination);
       
-      // In a production app, you'd call this API from a backend to protect your API key
-      // For this demo, we'll simulate a successful map load and generate navigation steps based on the destination
+      if (!directionsResult) {
+        throw new Error("Failed to get directions");
+      }
+      
+      setDirections(directionsResult);
       
       toast.success(isEmergencyRoute ? 
         "Emergency route found" : 
@@ -180,93 +179,34 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
         }));
       }
       
-      // Generate navigation steps based on destination
-      // In a real app, these would come from the routing API
-      let mockSteps: NavigationStep[] = [];
-      
-      // Customize steps based on destination for more realistic simulation
-      if (destination.toLowerCase().includes("hospital") || isEmergencyRoute) {
-        mockSteps = [
-          { instruction: "Turn right onto Emergency Lane", distance: "0.3 km", time: "1 min" },
-          { instruction: "Take the fast lane on Highway 101", distance: "4.2 km", time: "3 min" },
-          { instruction: "Take emergency exit toward Hospital", distance: "0.5 km", time: "1 min" },
-          { instruction: "Turn left at the Emergency entrance", distance: "0.2 km", time: "1 min" },
-          { instruction: "You have arrived at the Emergency Department", distance: "0 km", time: "0 min" }
-        ];
-      } else if (destination.toLowerCase().includes("airport")) {
-        mockSteps = [
-          { instruction: "Head east on Main St", distance: "1.2 km", time: "3 min" },
-          { instruction: "Take the ramp onto Airport Highway", distance: "5.8 km", time: "6 min" },
-          { instruction: "Keep left at the fork toward Terminals", distance: "2.1 km", time: "2 min" },
-          { instruction: "Take exit for Departures", distance: "0.7 km", time: "1 min" },
-          { instruction: "You have arrived at the Airport Terminal", distance: "0 km", time: "0 min" }
-        ];
-      } else if (destination.toLowerCase().includes("downtown")) {
-        mockSteps = [
-          { instruction: "Head north on Main St", distance: "0.5 km", time: "2 min" },
-          { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
-          { instruction: "Continue onto Downtown Plaza", distance: "0.8 km", time: "3 min" },
-          { instruction: "Turn left onto Market St", distance: "0.6 km", time: "2 min" },
-          { instruction: "Your destination is on the right", distance: "0 km", time: "0 min" }
-        ];
-      } else if (destination.toLowerCase().includes("university")) {
-        mockSteps = [
-          { instruction: "Head west on Education Drive", distance: "0.4 km", time: "1 min" },
-          { instruction: "Turn onto University Boulevard", distance: "1.8 km", time: "3 min" },
-          { instruction: "Continue past the Science Building", distance: "0.6 km", time: "2 min" },
-          { instruction: "Turn right at Library Square", distance: "0.3 km", time: "1 min" },
-          { instruction: "You have arrived at the University campus", distance: "0 km", time: "0 min" }
-        ];
-      } else {
-        // Default route
-        mockSteps = [
-          { instruction: "Head north on Main St", distance: "0.5 km", time: "2 min" },
-          { instruction: "Turn right onto Broadway Ave", distance: "1.2 km", time: "4 min" },
-          { instruction: "Take the ramp onto Highway 101", distance: "5.8 km", time: "6 min" },
-          { instruction: "Keep left at the fork", distance: "2.3 km", time: "3 min" },
-          { instruction: "Take exit 25B for Downtown", distance: "0.8 km", time: "1 min" },
-          { instruction: "Turn right onto Market St", distance: "1.5 km", time: "5 min" },
-          { instruction: "Your destination is on the right", distance: "0 km", time: "0 min" }
-        ];
-      }
-      
-      setNavigationSteps(mockSteps);
+      // Set the navigation steps and map URL
+      setNavigationSteps(directionsResult.steps);
+      setMapUrl(directionsResult.mapUrl);
       setCurrentStepIndex(0);
       
       // Calculate initial remaining distance and time
-      const { distance, time } = calculateRemainingDistanceAndTime(mockSteps, 0);
+      const { distance, time } = calculateRemainingDistanceAndTime(directionsResult.steps, 0);
       setDistanceRemaining(distance);
       setTimeRemaining(time);
       
       // Calculate estimated CO2 savings based on route
       // In a real app, this would be based on vehicle type, route efficiency, etc.
-      const routeDistance = mockSteps.reduce((total, step) => {
-        const km = parseFloat(step.distance.replace(" km", "")) || 0;
-        return total + km;
-      }, 0);
+      const routeDistance = directionsResult.totalDistance.match(/(\d+\.?\d*)/);
+      const distanceKm = routeDistance ? parseFloat(routeDistance[0]) : 0;
       
-      const estimatedCo2Saved = Math.round(routeDistance * 0.12 * 100) / 100; // 0.12kg CO2 saved per km (example)
+      const estimatedCo2Saved = Math.round(distanceKm * 0.12 * 100) / 100; // 0.12kg CO2 saved per km (example)
       setCo2Saved(estimatedCo2Saved);
-      
-      // Generate embedded Google Maps URL with directions
-      // Make sure both parameters are valid
-      if (currentOrigin && destination) {
-        const directionsUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&origin=${encodeURIComponent(currentOrigin)}&destination=${encodeURIComponent(destination)}&zoom=10`;
-        setMapUrl(directionsUrl);
-      } else {
-        toast.error("Invalid origin or destination");
-      }
       
       // Set route as active and dispatch event with navigation steps
       setRouteActive(true);
       window.dispatchEvent(new CustomEvent('navigation:route-calculated', { 
         detail: {
-          steps: mockSteps
+          steps: directionsResult.steps
         }
       }));
       
       // Start navigation simulation
-      startNavigationSimulation(mockSteps);
+      startNavigationSimulation(directionsResult.steps);
     } catch (error) {
       console.error("Failed to fetch route:", error);
       toast.error("Failed to fetch route. Please try again.");
@@ -309,7 +249,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     }
   };
   
-  const startNavigationSimulation = (steps: NavigationStep[]) => {
+  const startNavigationSimulation = (steps: DirectionStep[]) => {
     // Reset index and destination reached status
     setCurrentStepIndex(0);
     setDestinationReached(false);
@@ -387,6 +327,66 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
     };
   }, []);
 
+  // Get user's current location
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      toast.info("Getting your current location...");
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          // In a real app, we would reverse geocode to get the address
+          // For now, we'll just use "Current Location" and log the coordinates
+          console.log(`Current location: ${latitude}, ${longitude}`);
+          setOrigin("Current Location");
+          
+          if (setNavigationState) {
+            setNavigationState(prev => ({
+              ...prev,
+              origin: "Current Location"
+            }));
+          }
+          
+          toast.success("Current location set");
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          toast.error("Failed to get your location. Please enter it manually.");
+        },
+        { enableHighAccuracy: true }
+      );
+    } else {
+      toast.error("Geolocation is not supported by your browser");
+    }
+  };
+
+  // Helper to render the maneuver icon
+  const renderManeuverIcon = (maneuver?: string) => {
+    switch (maneuver) {
+      case 'turn-right':
+        return <ArrowRight className="h-5 w-5 -rotate-90" />;
+      case 'turn-left':
+        return <ArrowRight className="h-5 w-5 rotate-90" />;
+      case 'merge':
+        return <ArrowRight className="h-5 w-5 rotate-45" />;
+      case 'ramp-right':
+        return <ArrowRight className="h-5 w-5 -rotate-45" />;
+      case 'ramp-left':
+        return <ArrowRight className="h-5 w-5 rotate-45" />;
+      case 'fork-right':
+        return <ArrowRight className="h-5 w-5 -rotate-45" />;
+      case 'fork-left':
+        return <ArrowRight className="h-5 w-5 rotate-45" />;
+      case 'straight':
+        return <ArrowRight className="h-5 w-5" />;
+      case 'arrive':
+        return <MapPin className="h-5 w-5" />;
+      default:
+        return <Route className="h-5 w-5" />;
+    }
+  };
+
   return (
     <Card className="dashboard-card h-full">
       <CardHeader className="pb-2">
@@ -395,36 +395,49 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
       <CardContent>
         <form onSubmit={handleRouteSearch} className="mb-4">
           <div className="grid grid-cols-1 gap-2">
-            <div>
-              <Input
+            <div className="flex gap-2">
+              <PlaceSearch
                 placeholder="Current Location" 
                 value={origin}
-                onChange={(e) => {
-                  setOrigin(e.target.value);
+                onChange={(value, suggestion) => {
+                  setOrigin(value);
+                  setOriginSuggestion(suggestion);
                   if (setNavigationState) {
                     setNavigationState(prev => ({
                       ...prev,
-                      origin: e.target.value
+                      origin: value
                     }));
                   }
                 }}
-                className="bg-muted"
+                className="flex-1"
+                inputClassName="bg-muted"
               />
+              <Button 
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleGetCurrentLocation}
+                title="Get current location"
+              >
+                <Navigation className="h-4 w-4" />
+              </Button>
             </div>
             <div>
-              <Input
+              <PlaceSearch
                 placeholder="Destination" 
                 value={destination}
-                onChange={(e) => {
-                  setDestination(e.target.value);
+                onChange={(value, suggestion) => {
+                  setDestination(value);
+                  setDestinationSuggestion(suggestion);
                   if (setNavigationState) {
                     setNavigationState(prev => ({
                       ...prev,
-                      destination: e.target.value
+                      destination: value
                     }));
                   }
                 }}
-                className="bg-muted"
+                className="w-full"
+                inputClassName="bg-muted"
               />
             </div>
             <div className="flex gap-2">
@@ -490,9 +503,7 @@ const NavigationMap = ({ navigationState, setNavigationState }: NavigationMapPro
               <div className={`p-2 rounded-full ${
                 isEmergencyRoute ? 'bg-red-500/20' : 'bg-primary/20'
               }`}>
-                <Route className={`h-5 w-5 ${
-                  isEmergencyRoute ? 'text-red-500' : 'text-primary'
-                }`} />
+                {renderManeuverIcon(navigationSteps[currentStepIndex].maneuver)}
               </div>
               <div className="flex-1">
                 <p className="font-medium">{navigationSteps[currentStepIndex].instruction}</p>
