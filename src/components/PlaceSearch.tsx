@@ -16,7 +16,7 @@ interface PlaceSearchProps {
   inputClassName?: string;
 }
 
-export function PlaceSearch({ placeholder = "Search places...", value = "", onChange, className, inputClassName }: PlaceSearchProps) {
+export function PlaceSearch({ placeholder = "Search places in UAE...", value = "", onChange, className, inputClassName }: PlaceSearchProps) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -43,12 +43,12 @@ export function PlaceSearch({ placeholder = "Search places...", value = "", onCh
       const results = await getPlaceSuggestions(query);
       setSuggestions(results);
       if (results.length === 0) {
-        setError(`No results found for "${query}"`);
+        setError(`No results found for "${query}" in UAE`);
       }
     } catch (error) {
       console.error("Error fetching suggestions:", error);
       setSuggestions([]);
-      setError("Failed to fetch suggestions from SERP API");
+      setError("Failed to fetch suggestions. Please try again.");
       toast.error("Failed to fetch place suggestions", { 
         description: "Please check your internet connection and try again" 
       });
@@ -110,7 +110,7 @@ export function PlaceSearch({ placeholder = "Search places...", value = "", onCh
                   ) : (
                     <>
                       {suggestions.length === 0 && !loading ? (
-                        <CommandEmpty>No places found</CommandEmpty>
+                        <CommandEmpty>No places found in UAE</CommandEmpty>
                       ) : (
                         <CommandGroup heading="Suggestions">
                           {suggestions.map((suggestion) => (

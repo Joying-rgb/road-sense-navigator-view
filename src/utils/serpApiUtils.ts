@@ -7,36 +7,51 @@ export interface PlaceSuggestion {
   name: string;
   address: string;
   formattedAddress: string;
+  latitude?: number;
+  longitude?: number;
 }
 
-// Function to get place suggestions
+// Function to get place suggestions using the Google Maps Autocomplete engine
 export async function getPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> {
   if (!query || query.trim().length < 2) return [];
   
   try {
-    const response = await fetch(`https://serpapi.com/search.json?engine=google_maps&q=${encodeURIComponent(query)}&api_key=${SERP_API_KEY}`);
+    // Using the Google Maps Autocomplete engine with UAE region (gl=ae)
+    const response = await fetch(`https://serpapi.com/search.json?engine=google_maps_autocomplete&q=${encodeURIComponent(query)}&gl=ae&api_key=${SERP_API_KEY}`);
     
     if (!response.ok) {
       throw new Error(`SERP API request failed: ${response.status}`);
     }
     
     const data = await response.json();
-    console.log("SERP API response:", data);
+    console.log("SERP API Autocomplete response:", data);
     
-    // Extract place suggestions from the response
-    if (data.local_results && data.local_results.length > 0) {
-      return data.local_results.map((place: any, index: number) => ({
-        id: `place-${index}-${Date.now()}`,
-        name: place.title,
-        address: place.address || "",
-        formattedAddress: place.address || place.title
-      }));
-    } else if (data.search_metadata && data.search_metadata.status === "Success") {
-      // No local results but API call was successful
-      console.log("No local results found for query:", query);
-      return [];
+    // Extract suggestions from the autocomplete response
+    if (data.suggestions && data.suggestions.length > 0) {
+      return data.suggestions.map((suggestion: any, index: number) => {
+        // For place type suggestions with coordinates
+        if (suggestion.type === 'place' && suggestion.latitude && suggestion.longitude) {
+          return {
+            id: suggestion.data_id || `place-${index}-${Date.now()}`,
+            name: suggestion.value,
+            address: suggestion.subtext || "",
+            formattedAddress: suggestion.subtext ? `${suggestion.value}, ${suggestion.subtext}` : suggestion.value,
+            latitude: suggestion.latitude,
+            longitude: suggestion.longitude
+          };
+        } else {
+          // For keyword type or suggestions without coordinates
+          return {
+            id: `suggestion-${index}-${Date.now()}`,
+            name: suggestion.value,
+            address: suggestion.subtext || "",
+            formattedAddress: suggestion.subtext ? `${suggestion.value}, ${suggestion.subtext}` : suggestion.value
+          };
+        }
+      });
     } else {
-      throw new Error("No search metadata or local results in SERP API response");
+      console.log("No suggestions found for query:", query);
+      return [];
     }
   } catch (error) {
     console.error("Failed to fetch place suggestions from SERP API:", error);
@@ -66,7 +81,7 @@ export async function getDirections(origin: string, destination: string): Promis
   const searchQuery = `${origin} to ${destination} directions`;
   
   try {
-    const response = await fetch(`https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&api_key=${SERP_API_KEY}`);
+    const response = await fetch(`https://serpapi.com/search.json?q=${encodeURIComponent(searchQuery)}&gl=ae&api_key=${SERP_API_KEY}`);
     
     if (!response.ok) {
       throw new Error(`SERP API request failed: ${response.status}`);
